@@ -95,6 +95,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { supabase } from '../lib/supabase'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const location        = ref(null)   // latest GPS row
@@ -113,6 +114,7 @@ let marker       = null
 let fsMap        = null
 let fsMarker     = null
 let pollInterval = null
+let realtimeChannel = null
 
 // Previous position snapshot for movement detection (2nd decimal precision)
 let prevLat = null
@@ -148,11 +150,41 @@ function hasMoved(lat1, lng1, lat2, lng2) {
   return fmt2(lat1) !== fmt2(lat2) || fmt2(lng1) !== fmt2(lng2)
 }
 
-// ─── Fetch via direct DB API ──────────────────────────────────────────────────
+// ─── Fetch GPS data (Supabase direct + API fallback) ──────────────────────────
 async function fetchLatest() {
   try {
-    const res = await fetch('/api/gps/latest')
-    const data = await res.json()
+    let data = null
+
+    // 1. Direct Supabase query (works in production on Vercel and localhost)
+    const { data: supaRows, error } = await supabase
+      .from('gps_logs')
+      .select('id, latitude, longitude, speed, satellites, charge, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (!error && supaRows && supaRows.length > 0) {
+      const row = supaRows[0]
+      const isOnline = Date.now() - new Date(row.created_at).getTime() <= 30_000
+      data = {
+        id: row.id,
+        lat: parseFloat(row.latitude),
+        lng: parseFloat(row.longitude),
+        speed: parseFloat(row.speed ?? 0),
+        satellites: row.satellites,
+        charge: row.charge ?? 0,
+        created_at: row.created_at,
+        isOnline,
+      }
+    } else {
+      // 2. Fallback to /api/gps/latest if running local Express proxy
+      try {
+        const res = await fetch('/api/gps/latest')
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+          data = await res.json()
+        }
+      } catch { /* ignore fallback error */ }
+    }
+
     if (!data) return
 
     const prev = location.value
@@ -195,13 +227,30 @@ async function fetchLatest() {
 
 async function fetchFirstRecord() {
   try {
-    const res = await fetch('/api/gps/first')
-    const data = await res.json()
-    if (data?.created_at) {
-      firstRecordDate.value = data.created_at
-      // Also treat the first record date as an initial "last movement" baseline
-      if (!lastMovementDate.value) lastMovementDate.value = data.created_at
+    // 1. Direct Supabase query
+    const { data: firstRows, error } = await supabase
+      .from('gps_logs')
+      .select('created_at')
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (!error && firstRows && firstRows.length > 0) {
+      firstRecordDate.value = firstRows[0].created_at
+      if (!lastMovementDate.value) lastMovementDate.value = firstRows[0].created_at
+      return
     }
+
+    // 2. Fallback to /api/gps/first
+    try {
+      const res = await fetch('/api/gps/first')
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const d = await res.json()
+        if (d?.created_at) {
+          firstRecordDate.value = d.created_at
+          if (!lastMovementDate.value) lastMovementDate.value = d.created_at
+        }
+      }
+    } catch { /* ignore fallback error */ }
   } catch (err) {
     console.error('[fetchFirstRecord]', err)
   }
@@ -308,6 +357,15 @@ onMounted(async () => {
   if (location.value) await initMap()
   // Poll every 10 s
   pollInterval = setInterval(fetchLatest, 10_000)
+
+  // Realtime subscription for immediate position updates
+  realtimeChannel = supabase
+    .channel('gps_logs_card')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_logs' }, () => {
+      fetchLatest()
+    })
+    .subscribe()
+
   // Request notification permission
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission()
@@ -316,6 +374,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearInterval(pollInterval)
+  if (realtimeChannel) realtimeChannel.unsubscribe()
   if (map) map.remove()
   if (fsMap) fsMap.remove()
 })

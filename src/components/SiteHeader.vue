@@ -11,7 +11,20 @@
         <RouterLink to="/aide" class="nav-link">Aide</RouterLink>
 
         <template v-if="user">
-          <span class="user-name">{{ user.user_metadata?.name || user.email }}</span>
+          <div class="user-profile-badge">
+            <div class="user-avatar-wrapper">
+              <img
+                v-if="userAvatar && !avatarError"
+                :src="userAvatar"
+                :alt="userName"
+                class="user-avatar-img"
+                @error="avatarError = true"
+                referrerpolicy="no-referrer"
+              />
+              <span v-else class="user-avatar-initial">{{ userInitials }}</span>
+            </div>
+            <span class="user-name">{{ userName }}</span>
+          </div>
           <button class="btn-logout" @click="logout">Déconnexion</button>
         </template>
         <template v-else>
@@ -78,10 +91,18 @@
           <template v-if="user">
             <div class="mobile-user-info">
               <div class="mobile-user-avatar">
-                {{ (user.user_metadata?.name || user.email || '?')[0].toUpperCase() }}
+                <img
+                  v-if="userAvatar && !mobileAvatarError"
+                  :src="userAvatar"
+                  :alt="userName"
+                  class="user-avatar-img"
+                  @error="mobileAvatarError = true"
+                  referrerpolicy="no-referrer"
+                />
+                <span v-else class="user-avatar-initial">{{ userInitials }}</span>
               </div>
               <div class="mobile-user-details">
-                <span class="mobile-user-name">{{ user.user_metadata?.name || user.user_metadata?.full_name || 'Utilisateur' }}</span>
+                <span class="mobile-user-name">{{ userName }}</span>
                 <span class="mobile-user-email">{{ user.email }}</span>
               </div>
             </div>
@@ -107,9 +128,11 @@ import { useAuth } from '../composables/useAuth'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'vue-router'
 
-const { user } = useAuth()
+const { user, userAvatar, userName, userInitials } = useAuth()
 const router = useRouter()
 const mobileMenuOpen = ref(false)
+const avatarError = ref(false)
+const mobileAvatarError = ref(false)
 
 async function logout() {
   mobileMenuOpen.value = false
@@ -117,3 +140,4 @@ async function logout() {
   router.push('/login')
 }
 </script>
+

@@ -117,9 +117,10 @@ async function handleLogin() {
 }
 
 async function handleGoogleLogin() {
+  const redirectTo = import.meta.env.VITE_REDIRECT_URL || 'https://orepmi67.vercel.app/'
   await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo },
   })
 }
 </script>

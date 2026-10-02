@@ -82,6 +82,49 @@ app.get('/api/gps/all', async (_req, res) => {
   }
 })
 
+// GET /api/user/profile — get user by email with avatar_url
+app.get('/api/user/profile', async (req, res) => {
+  const email = req.query.email
+  if (!email) return res.status(400).json({ error: 'Email parameter required' })
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, email, avatar_url, created_at, updated_at
+       FROM public.users
+       WHERE email = $1
+       LIMIT 1`,
+      [email]
+    )
+    res.json(rows[0] ?? null)
+  } catch (err) {
+    console.error('[/api/user/profile]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/user/sync-avatar — update or set avatar_url in public.users
+app.post('/api/user/sync-avatar', async (req, res) => {
+  const { email, avatar_url, name } = req.body
+  if (!email) return res.status(400).json({ error: 'Email required' })
+
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO public.users (name, email, avatar_url, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (email) DO UPDATE SET
+         avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url),
+         name = COALESCE(EXCLUDED.name, public.users.name),
+         updated_at = NOW()
+       RETURNING id, name, email, avatar_url`,
+      [name || email.split('@')[0], email, avatar_url || null]
+    )
+    res.json(rows[0])
+  } catch (err) {
+    console.error('[/api/user/sync-avatar]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`[orepmi-api] Direct DB API running on http://localhost:${PORT}`)
 })
