@@ -1,19 +1,23 @@
 <template>
   <!-- Fullscreen overlay -->
   <Teleport to="body">
-    <div v-if="fullscreen" class="map-fullscreen-overlay" @keydown.escape="fullscreen = false" tabindex="-1">
-      <div ref="fullscreenMapEl" class="map-fullscreen-container"></div>
-      <button class="map-fullscreen-close" @click="closeFullscreen" title="Fermer">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-      <div v-if="location" class="map-fullscreen-coords">
-        {{ location.lat.toFixed(5) }}°N, {{ location.lng.toFixed(5) }}°E
-        <span :class="['fs-dot', isOnline ? 'online' : 'offline']"></span>
-        {{ isOnline ? 'EN LIGNE' : 'HORS LIGNE' }}
+    <Transition name="fs-fade">
+      <div v-if="fullscreen" class="map-fullscreen-overlay" @keydown.escape="closeFullscreen" tabindex="-1">
+        <div class="map-fullscreen-card">
+          <div ref="fullscreenMapEl" class="map-fullscreen-container"></div>
+          <button class="map-fullscreen-close" @click="closeFullscreen" title="Fermer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+          <div v-if="location" class="map-fullscreen-coords">
+            {{ location.lat.toFixed(5) }}°N, {{ location.lng.toFixed(5) }}°E
+            <span :class="['fs-dot', isOnline ? 'online' : 'offline']"></span>
+            {{ isOnline ? 'EN LIGNE' : 'HORS LIGNE' }}
+          </div>
+        </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 
   <div class="tracker-card">
@@ -322,6 +326,7 @@ async function initMap() {
 // ─── Fullscreen ───────────────────────────────────────────────────────────────
 async function openFullscreen() {
   fullscreen.value = true
+  document.body.classList.add('map-fullscreen-active')
   await nextTick()
   if (fullscreenMapEl.value && location.value) {
     const { map: m, marker: mk } = await buildMap(
@@ -329,11 +334,15 @@ async function openFullscreen() {
     )
     fsMap = m
     fsMarker = mk
+    setTimeout(() => {
+      if (fsMap) fsMap.invalidateSize()
+    }, 150)
   }
 }
 
 function closeFullscreen() {
   fullscreen.value = false
+  document.body.classList.remove('map-fullscreen-active')
   if (fsMap) { fsMap.remove(); fsMap = null; fsMarker = null }
 }
 
@@ -375,6 +384,7 @@ onMounted(async () => {
 onUnmounted(() => {
   clearInterval(pollInterval)
   if (realtimeChannel) realtimeChannel.unsubscribe()
+  document.body.classList.remove('map-fullscreen-active')
   if (map) map.remove()
   if (fsMap) fsMap.remove()
 })
@@ -415,34 +425,103 @@ watch(location, async (newVal) => {
 
 /* Fullscreen */
 .map-fullscreen-overlay {
-  position: fixed; inset: 0; z-index: 2000;
-  background: #0c1014; outline: none;
+  position: fixed;
+  top: 68px; /* Below site header */
+  bottom: 53px; /* Above site footer */
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: rgba(12, 16, 20, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  outline: none;
 }
-.map-fullscreen-container { width: 100%; height: 100%; }
+
+.map-fullscreen-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 1200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #0b0f13;
+}
+
+.map-fullscreen-container {
+  width: 100%;
+  height: 100%;
+}
+
 .map-fullscreen-close {
-  position: absolute; top: 16px; right: 16px; z-index: 2010;
-  background: rgba(12, 16, 20, 0.85);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 6px; color: #fff;
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background 0.2s ease;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1010;
+  background: rgba(12, 16, 20, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
   backdrop-filter: blur(6px);
 }
-.map-fullscreen-close:hover { background: rgba(220,38,38,0.6); }
+.map-fullscreen-close:hover {
+  background: rgba(220, 38, 38, 0.7);
+  border-color: rgba(220, 38, 38, 0.9);
+}
+
 .map-fullscreen-coords {
-  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-  z-index: 2010;
-  background: rgba(12, 16, 20, 0.88);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px; padding: 8px 16px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
-  display: flex; align-items: center; gap: 10px;
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1010;
+  background: rgba(12, 16, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
   backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .fs-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .fs-dot.online  { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
 .fs-dot.offline { background: var(--text-muted); }
+
+/* Fullscreen transitions */
+.fs-fade-enter-active,
+.fs-fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+.fs-fade-enter-from,
+.fs-fade-leave-to {
+  opacity: 0;
+}
+.fs-fade-enter-active .map-fullscreen-card,
+.fs-fade-leave-active .map-fullscreen-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fs-fade-enter-from .map-fullscreen-card,
+.fs-fade-leave-to .map-fullscreen-card {
+  transform: scale(0.97) translateY(8px);
+}
 
 /* Empty map */
 .map-empty-inner {

@@ -1535,6 +1535,27 @@ body.overflow-hidden {
 .modal-scale-enter-from,
 .modal-scale-leave-to { opacity: 0; transform: scale(0.95) translateY(8px); }
 
+/* Fullscreen active mode: keep header and footer pinned and visible */
+body.map-fullscreen-active {
+  overflow: hidden;
+}
+
+body.map-fullscreen-active .site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+body.map-fullscreen-active .site-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
 /* ==========================================================================
    MOBILE NAVIGATION (HAMBURGER & DRAWER)
    ========================================================================== */
@@ -1976,16 +1997,26 @@ body.overflow-hidden {
   }
 
   /* Fullscreen map controls on mobile */
+  .map-fullscreen-overlay {
+    top: 60px;
+    bottom: 50px;
+    padding: 12px 14px;
+  }
+
+  .map-fullscreen-card {
+    border-radius: 10px;
+  }
+
   .map-fullscreen-close {
-    top: calc(12px + env(safe-area-inset-top, 0px));
-    right: 12px;
-    width: 36px;
-    height: 36px;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
   }
 
   .map-fullscreen-coords {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    padding: 6px 12px;
+    bottom: 12px;
+    padding: 5px 12px;
     font-size: 11px;
     max-width: 90%;
     text-align: center;
