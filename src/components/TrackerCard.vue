@@ -1,19 +1,36 @@
 <template>
-  <!-- Fullscreen overlay -->
+  <!-- Fullscreen overlay with animated opening/closing -->
   <Teleport to="body">
-    <Transition name="fs-fade">
+    <Transition name="fs-fade" @after-leave="onFsAfterLeave">
       <div v-if="fullscreen" class="map-fullscreen-overlay" @keydown.escape="closeFullscreen" tabindex="-1">
         <div class="map-fullscreen-card">
+          <!-- Laser scanline sweep on open -->
+          <div class="fs-scanline"></div>
+
+          <!-- Futuristic HUD Corner Brackets -->
+          <div class="hud-corner hud-corner-tl"></div>
+          <div class="hud-corner hud-corner-tr"></div>
+          <div class="hud-corner hud-corner-bl"></div>
+          <div class="hud-corner hud-corner-br"></div>
+
           <div ref="fullscreenMapEl" class="map-fullscreen-container"></div>
-          <button class="map-fullscreen-close" @click="closeFullscreen" title="Fermer">
+          <button class="map-fullscreen-close" @click="closeFullscreen" title="Fermer (Échap)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
           <div v-if="location" class="map-fullscreen-coords">
-            {{ location.lat.toFixed(5) }}°N, {{ location.lng.toFixed(5) }}°E
+            <span class="fs-coords-text">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-orange); margin-right: 4px; vertical-align: -1px;">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <line x1="12" y1="2" x2="12" y2="22"/>
+              </svg>
+              {{ location.lat.toFixed(5) }}°N, {{ location.lng.toFixed(5) }}°E
+            </span>
+            <span class="fs-coords-sep">|</span>
             <span :class="['fs-dot', isOnline ? 'online' : 'offline']"></span>
-            {{ isOnline ? 'EN LIGNE' : 'HORS LIGNE' }}
+            <span class="fs-status-label">{{ isOnline ? 'EN LIGNE' : 'HORS LIGNE' }}</span>
           </div>
         </div>
       </div>
@@ -442,7 +459,14 @@ async function openFullscreen() {
 function closeFullscreen() {
   fullscreen.value = false
   document.body.classList.remove('map-fullscreen-active')
-  if (fsMap) { fsMap.remove(); fsMap = null; fsMarker = null }
+}
+
+function onFsAfterLeave() {
+  if (fsMap) {
+    fsMap.remove()
+    fsMap = null
+    fsMarker = null
+  }
 }
 
 // ─── Lock toggle with fancy feedback ─────────────────────────────────────────
@@ -547,9 +571,9 @@ watch(location, async (newVal) => {
   left: 0;
   right: 0;
   z-index: 80;
-  background: rgba(12, 16, 20, 0.45);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(6, 10, 14, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: 24px 32px;
   display: flex;
   align-items: center;
@@ -565,9 +589,10 @@ watch(location, async (newVal) => {
   max-width: 1200px;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 70px -10px rgba(0, 0, 0, 0.9), 0 0 35px rgba(249, 87, 33, 0.12);
   background: #0b0f13;
+  transform-origin: center center;
 }
 
 .map-fullscreen-container {
@@ -575,27 +600,114 @@ watch(location, async (newVal) => {
   height: 100%;
 }
 
+/* Futuristic HUD Corner Brackets */
+.hud-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: var(--accent-orange);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 1005;
+  opacity: 0.85;
+}
+
+.hud-corner-tl {
+  top: 10px;
+  left: 10px;
+  border-width: 2px 0 0 2px;
+  border-top-left-radius: 4px;
+}
+
+.hud-corner-tr {
+  top: 10px;
+  right: 10px;
+  border-width: 2px 2px 0 0;
+  border-top-right-radius: 4px;
+}
+
+.hud-corner-bl {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 2px 2px;
+  border-bottom-left-radius: 4px;
+}
+
+.hud-corner-br {
+  bottom: 10px;
+  right: 10px;
+  border-width: 0 2px 2px 0;
+  border-bottom-right-radius: 4px;
+}
+
+/* Laser scanline sweep on open */
+.fs-scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(249, 87, 33, 0.4) 20%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(249, 87, 33, 0.4) 80%,
+    transparent 100%
+  );
+  box-shadow: 0 0 16px 2px var(--accent-orange), 0 0 30px rgba(249, 87, 33, 0.7);
+  z-index: 1008;
+  pointer-events: none;
+  animation: fs-scanline-sweep 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes fs-scanline-sweep {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
 .map-fullscreen-close {
   position: absolute;
   top: 14px;
   right: 14px;
   z-index: 1010;
-  background: rgba(12, 16, 20, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  color: #fff;
-  width: 38px;
-  height: 38px;
+  background: rgba(12, 16, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(6px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
+
 .map-fullscreen-close:hover {
-  background: rgba(220, 38, 38, 0.7);
-  border-color: rgba(220, 38, 38, 0.9);
+  background: rgba(220, 38, 38, 0.85);
+  border-color: rgba(239, 68, 68, 0.9);
+  transform: rotate(90deg) scale(1.08);
+  box-shadow: 0 0 18px rgba(220, 38, 38, 0.6);
+}
+
+.map-fullscreen-close:active {
+  transform: rotate(90deg) scale(0.92);
 }
 
 .map-fullscreen-coords {
@@ -604,39 +716,166 @@ watch(location, async (newVal) => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 1010;
-  background: rgba(12, 16, 20, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 7px 16px;
+  background: rgba(10, 14, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 18px;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 10px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(249, 87, 33, 0.12);
+  transition: all 0.25s ease;
 }
-.fs-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.fs-dot.online  { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
-.fs-dot.offline { background: var(--text-muted); }
 
-/* Fullscreen transitions */
-.fs-fade-enter-active,
-.fs-fade-leave-active {
-  transition: opacity 0.22s ease;
+.map-fullscreen-coords:hover {
+  border-color: rgba(249, 87, 33, 0.5);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 20px rgba(249, 87, 33, 0.25);
 }
+
+.fs-coords-text {
+  display: flex;
+  align-items: center;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.fs-coords-sep {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+}
+
+.fs-status-label {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.fs-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fs-dot.online {
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: live-blink 1.8s ease-in-out infinite;
+}
+
+.fs-dot.offline {
+  background: var(--text-muted);
+}
+
+/* ─── High-End Fullscreen Opening & Closing Transitions ─────────────────── */
+.fs-fade-enter-active {
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              backdrop-filter 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              -webkit-backdrop-filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fs-fade-leave-active {
+  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              backdrop-filter 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              -webkit-backdrop-filter 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .fs-fade-enter-from,
 .fs-fade-leave-to {
+  opacity: 0 !important;
+  backdrop-filter: blur(0px) !important;
+  -webkit-backdrop-filter: blur(0px) !important;
+}
+
+/* Card zoom and spring */
+.fs-fade-enter-active .map-fullscreen-card {
+  transition: transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
+              opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.35s ease,
+              box-shadow 0.38s ease;
+}
+
+.fs-fade-leave-active .map-fullscreen-card {
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.24s ease-in,
+              filter 0.24s ease;
+}
+
+.fs-fade-enter-from .map-fullscreen-card {
+  opacity: 0;
+  transform: scale(0.85) translateY(28px);
+  filter: blur(6px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.fs-fade-leave-to .map-fullscreen-card {
+  opacity: 0;
+  transform: scale(0.9) translateY(18px);
+  filter: blur(4px);
+}
+
+/* Corner brackets slide in */
+.fs-fade-enter-active .hud-corner {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s;
+}
+
+.fs-fade-enter-from .hud-corner-tl {
+  transform: translate(-12px, -12px);
   opacity: 0;
 }
-.fs-fade-enter-active .map-fullscreen-card,
-.fs-fade-leave-active .map-fullscreen-card {
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+.fs-fade-enter-from .hud-corner-tr {
+  transform: translate(12px, -12px);
+  opacity: 0;
 }
-.fs-fade-enter-from .map-fullscreen-card,
-.fs-fade-leave-to .map-fullscreen-card {
-  transform: scale(0.97) translateY(8px);
+.fs-fade-enter-from .hud-corner-bl {
+  transform: translate(-12px, 12px);
+  opacity: 0;
+}
+.fs-fade-enter-from .hud-corner-br {
+  transform: translate(12px, 12px);
+  opacity: 0;
+}
+
+/* Close button entrance & exit */
+.fs-fade-enter-active .map-fullscreen-close {
+  transition: all 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s;
+}
+
+.fs-fade-leave-active .map-fullscreen-close {
+  transition: all 0.2s ease-in;
+}
+
+.fs-fade-enter-from .map-fullscreen-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.fs-fade-leave-to .map-fullscreen-close {
+  opacity: 0;
+  transform: scale(0.7);
+}
+
+/* Coordinates bar entrance & exit */
+.fs-fade-enter-active .map-fullscreen-coords {
+  transition: all 0.38s cubic-bezier(0.34, 1.4, 0.64, 1) 0.18s;
+}
+
+.fs-fade-leave-active .map-fullscreen-coords {
+  transition: all 0.2s ease-in;
+}
+
+.fs-fade-enter-from .map-fullscreen-coords {
+  opacity: 0;
+  transform: translateX(-50%) translateY(24px) scale(0.9);
+}
+
+.fs-fade-leave-to .map-fullscreen-coords {
+  opacity: 0;
+  transform: translateX(-50%) translateY(14px);
 }
 
 /* Empty map */
