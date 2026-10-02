@@ -36,7 +36,7 @@
         <div class="hero-left">
           <span class="hero-tag">Suivi GPS - Anti-Vol</span>
           <h1 class="hero-title">Sachez toujours où<br />sont vos objets.</h1>
-          <RouterLink to="/signup" class="hero-highlight-link">
+          <RouterLink to="/signup" class="hero-highlight-link" style="text-decoration: none; color: #f05000;">
             Ajoutez vos trackers ou votre téléphone et recevez les alerte en cas du vol
           </RouterLink>
           <div class="hero-actions">
@@ -48,7 +48,7 @@
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             </RouterLink>
-            <a href="#comment-ca-marche" class="btn-ghost btn-hero-ghost">
+            <a href="/aide" class="btn-ghost btn-hero-ghost">
               <span>Voir comment ça marche</span>
               <svg class="btn-chevron-down" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
