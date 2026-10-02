@@ -20,7 +20,44 @@
     </Transition>
   </Teleport>
 
-  <div class="tracker-card">
+  <div class="tracker-card" :class="[scanlineType, { 'is-card-locked': isLocked, 'is-card-unlocked': !isLocked }]">
+    <!-- Futuristic scanline beam sweep across card on lock/unlock -->
+    <div v-if="scanlineActive" class="card-security-scanline" :class="scanlineType"></div>
+
+    <!-- Micro-toast floating notification -->
+    <Transition name="toast-pop">
+      <div v-if="toastActive" :class="['tracker-toast', `toast-${toastType}`]">
+        <span class="toast-dot"></span>
+        <span class="toast-msg">{{ toastText }}</span>
+      </div>
+    </Transition>
+
+    <!-- In-card animated delete confirmation popup overlay -->
+    <Transition name="confirm-slide">
+      <div v-if="showDeleteConfirm" class="card-confirm-overlay">
+        <div class="card-confirm-modal">
+          <div class="confirm-icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </div>
+          <div class="confirm-title">Supprimer ce tracker ?</div>
+          <div class="confirm-subtitle">Simulation mode test — Aucune donnée effacée</div>
+          <div class="confirm-actions">
+            <button class="btn-confirm-yes" :disabled="deleteInProgress" @click="executeDelete">
+              {{ deleteInProgress ? 'Suppression…' : 'Confirmer' }}
+            </button>
+            <button class="btn-confirm-no" @click="cancelDelete">
+              Annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Map area -->
     <div class="tracker-map-wrapper">
       <div v-if="location" ref="mapEl" class="tracker-map-live"></div>
@@ -35,8 +72,8 @@
       </div>
 
       <!-- Fullscreen button -->
-      <button v-if="location" class="map-expand-btn" @click="openFullscreen" title="Plein écran">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <button v-if="location" class="map-expand-btn btn-expand-interactive" @click="openFullscreen" title="Plein écran">
+        <svg class="expand-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
         </svg>
       </button>
@@ -63,28 +100,61 @@
 
       <!-- Row 3: Lock status — movement -->
       <div class="tracker-status">
-        <span :style="{ color: isLocked ? '#fca5a5' : 'var(--accent-green)', fontWeight: 700 }">
-          {{ isLocked ? 'VERROUILLÉ' : 'DÉVERROUILLÉ' }}
-        </span>
-        <span style="color: var(--text-secondary)"> — </span>
-        <span style="color: var(--text-secondary)">
+        <Transition name="status-pill-flip" mode="out-in">
+          <span
+            :key="isLocked ? 'locked' : 'unlocked'"
+            class="status-pill"
+            :class="isLocked ? 'status-pill-locked' : 'status-pill-unlocked'"
+          >
+            <span class="status-pill-dot"></span>
+            {{ isLocked ? 'VERROUILLÉ' : 'DÉVERROUILLÉ' }}
+          </span>
+        </Transition>
+        <span class="tracker-sep"> — </span>
+        <span class="movement-state" :class="{ 'moving-active': isOnline }">
+          <span v-if="isOnline" class="movement-wave-indicator" title="En mouvement">
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+          </span>
+          <span v-else class="movement-static-dot"></span>
           {{ isOnline ? 'En mouvement' : 'Pas de mouvement' }}
         </span>
-        <span
-          v-if="movementDetected && isLocked"
-          class="movement-label"
-        > 🚨</span>
+        <Transition name="alert-shake-pop">
+          <span
+            v-if="movementDetected && isLocked"
+            class="movement-alert-badge"
+            title="Alerte vol / mouvement non autorisé !"
+          >
+            🚨 <span class="alert-badge-text">ALERTE</span>
+          </span>
+        </Transition>
       </div>
 
       <!-- Buttons -->
       <div class="tracker-actions">
         <button
-          class="btn-card-white"
+          class="btn-card-lock btn-shimmer-interactive"
+          :class="isLocked ? 'btn-lock-locked' : 'btn-lock-unlocked'"
           @click="toggleLock"
-        >{{ isLocked ? 'Déverrouiller' : 'Verrouiller' }}</button>
+          :title="isLocked ? 'Cliquez pour déverrouiller' : 'Cliquez pour verrouiller'"
+        >
+          <span class="btn-shimmer-sweep"></span>
+          <span class="lock-icon-svg" :class="{ 'is-locked': isLocked }">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path class="shackle-path" :d="isLocked ? 'M7 11V7a5 5 0 0 1 10 0v4' : 'M7 11V7a5 5 0 0 1 9.9 -1'"/>
+            </svg>
+          </span>
+          <Transition name="btn-label-slide" mode="out-in">
+            <span :key="isLocked ? 'locked' : 'unlocked'" class="btn-label-text">
+              {{ isLocked ? 'Déverrouiller' : 'Verrouiller' }}
+            </span>
+          </Transition>
+        </button>
 
-        <button class="btn-card-danger" @click="confirmDelete">
-          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button class="btn-card-danger btn-delete-interactive" @click="confirmDelete">
+          <svg class="trash-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
             <path d="M10 11v6M14 11v6"/>
@@ -112,6 +182,35 @@ const trackerName     = ref('TestTracker1')
 const mapEl           = ref(null)
 const fullscreenMapEl = ref(null)
 const fullscreen      = ref(false)
+
+// ─── Fancy Action Animation States ───────────────────────────────────────────
+const scanlineActive    = ref(false)
+const scanlineType      = ref('')
+const toastActive       = ref(false)
+const toastText         = ref('')
+const toastType         = ref('locked')
+let toastTimer          = null
+
+const showDeleteConfirm = ref(false)
+const deleteInProgress  = ref(false)
+
+function triggerToast(text, type = 'locked') {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastText.value = text
+  toastType.value = type
+  toastActive.value = true
+  toastTimer = setTimeout(() => {
+    toastActive.value = false
+  }, 2600)
+}
+
+function triggerScanline(type) {
+  scanlineType.value = type
+  scanlineActive.value = true
+  setTimeout(() => {
+    scanlineActive.value = false
+  }, 850)
+}
 
 let map          = null
 let marker       = null
@@ -346,17 +445,34 @@ function closeFullscreen() {
   if (fsMap) { fsMap.remove(); fsMap = null; fsMarker = null }
 }
 
-// ─── Lock toggle ──────────────────────────────────────────────────────────────
+// ─── Lock toggle with fancy feedback ─────────────────────────────────────────
 function toggleLock() {
   isLocked.value = !isLocked.value
-  // When locking again, reset movement flag so next real move triggers fresh alert
-  if (isLocked.value) movementDetected.value = false
+  if (isLocked.value) {
+    movementDetected.value = false
+    triggerScanline('scanline-locked')
+    triggerToast('Tracker sécurisé — Surveillance active', 'locked')
+  } else {
+    triggerScanline('scanline-unlocked')
+    triggerToast('Tracker déverrouillé — Mode déplacement', 'unlocked')
+  }
 }
 
 function confirmDelete() {
-  if (confirm('Supprimer ce tracker ? (test — aucune donnée ne sera effacée)')) {
-    alert('Suppression simulée.')
-  }
+  showDeleteConfirm.value = true
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
+}
+
+function executeDelete() {
+  deleteInProgress.value = true
+  setTimeout(() => {
+    deleteInProgress.value = false
+    showDeleteConfirm.value = false
+    triggerToast('Suppression simulée (Mode test)', 'danger')
+  }, 500)
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -630,5 +746,458 @@ watch(location, async (newVal) => {
 }
 .btn-lock-unlocked:hover {
   background: rgba(34, 197, 94, 0.22);
+}
+
+/* ─── Tracker Card Action Enhancements ───────────────────────────────────── */
+.tracker-card {
+  position: relative;
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.tracker-card.is-card-locked {
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.tracker-card.is-card-unlocked {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* Laser scanline beam */
+.card-security-scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  pointer-events: none;
+  z-index: 50;
+  animation: scanline-pass 0.85s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.card-security-scanline.scanline-locked {
+  background: #ef4444;
+  box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.8), 0 0 30px 6px rgba(239, 68, 68, 0.4);
+}
+
+.card-security-scanline.scanline-unlocked {
+  background: #22c55e;
+  box-shadow: 0 0 15px 3px rgba(34, 197, 94, 0.8), 0 0 30px 6px rgba(34, 197, 94, 0.4);
+}
+
+@keyframes scanline-pass {
+  0% {
+    top: 0%;
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Floating micro-toast */
+.tracker-toast {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 70;
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+}
+
+.toast-locked {
+  background: rgba(185, 28, 28, 0.92);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #ffffff;
+}
+
+.toast-unlocked {
+  background: rgba(22, 101, 52, 0.92);
+  border: 1px solid rgba(34, 197, 94, 0.6);
+  color: #ffffff;
+}
+
+.toast-danger {
+  background: rgba(127, 29, 29, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  color: #fca5a5;
+}
+
+.toast-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px #ffffff;
+  flex-shrink: 0;
+}
+
+.toast-pop-enter-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toast-pop-leave-active {
+  transition: all 0.22s ease-in;
+}
+.toast-pop-enter-from,
+.toast-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.92);
+}
+
+/* In-card confirmation modal */
+.card-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(12, 16, 20, 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.card-confirm-modal {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.confirm-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  animation: confirm-icon-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes confirm-icon-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}
+
+.confirm-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.confirm-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.btn-confirm-yes {
+  flex: 1;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-confirm-yes:hover {
+  background: #b91c1c;
+  box-shadow: 0 2px 10px rgba(220, 38, 38, 0.5);
+}
+
+.btn-confirm-no {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-confirm-no:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.confirm-slide-enter-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.confirm-slide-leave-active {
+  transition: all 0.2s ease-in;
+}
+.confirm-slide-enter-from,
+.confirm-slide-leave-to {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+/* Button & Lock Icon Animations */
+.btn-card-lock {
+  background-color: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-card-lock:hover {
+  transform: translateY(-1px);
+}
+
+.btn-lock-locked:hover {
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+}
+
+.btn-lock-unlocked:hover {
+  box-shadow: 0 4px 14px rgba(34, 197, 94, 0.3);
+}
+
+.lock-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
+}
+
+.lock-icon-svg.is-locked {
+  color: #dc2626;
+  animation: lock-snap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lock-icon-svg:not(.is-locked) {
+  color: #16a34a;
+  animation: unlock-pivot 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.shackle-path {
+  transition: d 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes lock-snap {
+  0% { transform: scale(1.3) translateY(-2px); }
+  60% { transform: scale(0.9) translateY(1px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes unlock-pivot {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.2) rotate(-8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.btn-delete-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-delete-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.4);
+}
+
+.trash-icon {
+  transition: transform 0.2s ease;
+}
+
+.btn-delete-interactive:hover .trash-icon {
+  transform: rotate(-12deg) scale(1.1);
+}
+
+/* Status Pill & Wave Bars */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: all 0.25s ease;
+}
+
+.status-pill-locked {
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: #fca5a5;
+}
+
+.status-pill-unlocked {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+.status-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-pill-locked .status-pill-dot {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+.status-pill-unlocked .status-pill-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.status-pill-flip-enter-active,
+.status-pill-flip-leave-active {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.status-pill-flip-enter-from {
+  opacity: 0;
+  transform: rotateX(70deg) translateY(-4px);
+}
+.status-pill-flip-leave-to {
+  opacity: 0;
+  transform: rotateX(-70deg) translateY(4px);
+}
+
+.movement-wave-indicator {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.wave-bar {
+  width: 2px;
+  background-color: var(--accent-green);
+  border-radius: 1px;
+  animation: wave-bounce 1s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) { height: 4px; animation-delay: 0.1s; }
+.wave-bar:nth-child(2) { height: 10px; animation-delay: 0.25s; }
+.wave-bar:nth-child(3) { height: 6px; animation-delay: 0.4s; }
+
+@keyframes wave-bounce {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+  50% { transform: scaleY(1.2); opacity: 1; }
+}
+
+.movement-static-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  margin-right: 4px;
+}
+
+.movement-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  border-radius: 4px;
+  color: #fca5a5;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  animation: alert-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes alert-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); box-shadow: 0 0 8px rgba(220, 38, 38, 0.6); }
+}
+
+.alert-shake-pop-enter-active {
+  animation: alert-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.alert-shake-pop-leave-active {
+  transition: opacity 0.2s ease;
+}
+.alert-shake-pop-leave-to {
+  opacity: 0;
+}
+
+@keyframes alert-enter {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.btn-expand-interactive {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-expand-interactive:hover {
+  transform: scale(1.1);
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.btn-expand-interactive:hover .expand-icon {
+  transform: rotate(5deg);
+}
+.expand-icon {
+  transition: transform 0.2s ease;
+}
+
+.btn-label-slide-enter-active,
+.btn-label-slide-leave-active {
+  transition: all 0.18s ease;
+}
+.btn-label-slide-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.btn-label-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

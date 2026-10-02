@@ -28,7 +28,10 @@
           <button class="btn-logout" @click="logout">Déconnexion</button>
         </template>
         <template v-else>
-          <RouterLink to="/login" class="btn-connexion">Connexion</RouterLink>
+          <RouterLink to="/login" class="btn-connexion btn-shimmer-interactive">
+            <span class="btn-shimmer-sweep"></span>
+            <span>Connexion</span>
+          </RouterLink>
         </template>
       </nav>
 

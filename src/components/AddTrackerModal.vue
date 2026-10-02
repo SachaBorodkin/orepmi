@@ -10,7 +10,7 @@
         aria-modal="true"
         aria-labelledby="add-tracker-modal-title"
       >
-        <Transition name="modal-scale">
+        <Transition name="modal-pop">
           <div v-if="open" class="modal-card">
             <!-- Modal Header -->
             <div class="modal-card-header">
@@ -25,10 +25,13 @@
               <button type="button" class="modal-close-btn" @click="close" aria-label="Fermer">✕</button>
             </div>
 
-            <!-- Radar Banner -->
+            <!-- Radar Banner with sweeping scanner -->
             <div class="modal-banner">
+              <div class="modal-radar-scanner-beam"></div>
               <div class="modal-radar-pulse">
-                <div class="pulse-ring"></div>
+                <div class="pulse-ring pulse-ring-1"></div>
+                <div class="pulse-ring pulse-ring-2"></div>
+                <div class="pulse-ring pulse-ring-3"></div>
                 <div class="pulse-center">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path>
@@ -55,7 +58,7 @@
               </p>
 
               <div class="modal-features-list">
-                <div class="modal-feature-row">
+                <div class="modal-feature-row feature-row-stagger-1">
                   <div class="feature-icon-wrapper">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
@@ -67,7 +70,7 @@
                   </div>
                 </div>
 
-                <div class="modal-feature-row">
+                <div class="modal-feature-row feature-row-stagger-2">
                   <div class="feature-icon-wrapper">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -79,7 +82,7 @@
                   </div>
                 </div>
 
-                <div class="modal-feature-row">
+                <div class="modal-feature-row feature-row-stagger-3">
                   <div class="feature-icon-wrapper">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -94,7 +97,10 @@
               </div>
 
               <div class="modal-actions">
-                <button type="button" class="btn-white modal-btn-confirm" @click="close">Compris</button>
+                <button type="button" class="btn-white modal-btn-confirm btn-shimmer-interactive" @click="close">
+                  <span class="btn-shimmer-sweep"></span>
+                  <span>Compris</span>
+                </button>
               </div>
             </div>
           </div>

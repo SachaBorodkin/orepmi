@@ -57,7 +57,10 @@
           <span class="help-contact-tag">Besoin d'aide supplémentaire ?</span>
           <p class="help-contact-text">Notre équipe ne répond jamais</p>
         </div>
-        <a href="mailto:pi41dcg@eduvaud.ch" class="btn-white help-contact-btn">Contacter le support</a>
+        <a href="mailto:pi41dcg@eduvaud.ch" class="btn-white help-contact-btn btn-shimmer-interactive">
+          <span class="btn-shimmer-sweep"></span>
+          <span>Contacter le support</span>
+        </a>
       </div>
     </div>
 

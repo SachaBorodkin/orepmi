@@ -25,7 +25,7 @@
           Sécurisez vos objets et accédez au suivi de vos trackers en temps réel.
         </p>
 
-        <div v-if="errorMsg" class="alert-banner error">{{ errorMsg }}</div>
+        <div v-if="errorMsg" class="alert-banner error alert-shake">{{ errorMsg }}</div>
 
         <form class="auth-form" @submit.prevent="handleSignup">
           <div class="form-group">
@@ -85,7 +85,15 @@
           </div>
 
           <button type="submit" class="btn-auth-submit" :disabled="loading">
-            {{ loading ? 'Création…' : 'Créer un compte' }}
+            <span class="btn-shimmer-sweep"></span>
+            <span v-if="loading" class="btn-spinner-wrapper">
+              <svg class="btn-spinner" viewBox="0 0 24 24" fill="none">
+                <circle class="spinner-track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                <path class="spinner-head" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+              <span>Création en cours…</span>
+            </span>
+            <span v-else>Créer un compte</span>
           </button>
 
           <div class="auth-footer-link">
