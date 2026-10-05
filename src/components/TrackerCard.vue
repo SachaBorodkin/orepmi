@@ -98,9 +98,62 @@
 
     <div class="tracker-card-body">
 
-      <!-- Row 1: Name — Batterie -->
+      <!-- Row 1: Name (with rename pencil icon) — Batterie -->
       <div class="tracker-name-battery">
-        <span class="tracker-name">{{ trackerName }}</span>
+        <div class="tracker-name-container">
+          <template v-if="!isEditingName">
+            <span class="tracker-name" :title="trackerName">{{ trackerName }}</span>
+            <button
+              type="button"
+              class="btn-rename-tracker"
+              @click="startEditingName"
+              title="Renommer le tracker"
+              aria-label="Renommer le tracker"
+            >
+              <svg class="pencil-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+              </svg>
+            </button>
+          </template>
+
+          <form v-else class="tracker-rename-form" @submit.prevent="saveTrackerName">
+            <input
+              ref="nameInputRef"
+              v-model="editNameValue"
+              type="text"
+              class="tracker-name-input"
+              maxlength="35"
+              placeholder="Nom du tracker"
+              :disabled="isSavingName"
+              @keydown.escape="cancelEditingName"
+            />
+            <button
+              type="submit"
+              class="btn-rename-save"
+              :disabled="isSavingName || !editNameValue.trim()"
+              title="Enregistrer (Entrée)"
+              aria-label="Enregistrer"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn-rename-cancel"
+              :disabled="isSavingName"
+              @click="cancelEditingName"
+              title="Annuler (Échap)"
+              aria-label="Annuler"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+
         <span class="tracker-sep"> — </span>
         <span class="tracker-battery-label">Batterie du tracker:</span>
         <span class="tracker-battery" :style="batteryColor">{{ battery }}%</span>
@@ -189,12 +242,19 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { supabase } from '../lib/supabase'
 
 // ─── State ────────────────────────────────────────────────────────────────────
+const trackerId       = ref(1)
 const location        = ref(null)   // latest GPS row
 const firstRecordDate = ref(null)   // oldest GPS row created_at
 const lastMovementDate = ref(null)  // when the tracker last meaningfully moved
 const movementDetected = ref(false) // new movement since last poll
 const isLocked        = ref(true)   // true = alert on movement, false = owner moving
 const trackerName     = ref('TestTracker1')
+
+// Rename state
+const isEditingName   = ref(false)
+const editNameValue   = ref('')
+const isSavingName    = ref(false)
+const nameInputRef    = ref(null)
 
 const mapEl           = ref(null)
 const fullscreenMapEl = ref(null)
@@ -235,6 +295,122 @@ let fsMap        = null
 let fsMarker     = null
 let pollInterval = null
 let realtimeChannel = null
+let trackerRealtimeChannel = null
+
+// ─── Tracker DB Operations (Supabase + fallback API) ──────────────────────────
+async function fetchTracker() {
+  try {
+    let data = null
+
+    // 1. Direct Supabase query
+    const { data: supaTracker, error } = await supabase
+      .from('tracker')
+      .select('id, name, locked, owner_id')
+      .order('id', { ascending: true })
+      .limit(1)
+
+    if (!error && supaTracker && supaTracker.length > 0) {
+      data = supaTracker[0]
+    } else {
+      // 2. Fallback to /api/tracker (Express proxy)
+      try {
+        const res = await fetch('/api/tracker')
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+          data = await res.json()
+        }
+      } catch { /* ignore fallback error */ }
+    }
+
+    if (data) {
+      trackerId.value = data.id
+      if (data.name) trackerName.value = data.name
+      if (typeof data.locked === 'boolean') {
+        isLocked.value = data.locked
+      }
+    }
+  } catch (err) {
+    console.error('[fetchTracker]', err)
+  }
+}
+
+function startEditingName() {
+  editNameValue.value = trackerName.value
+  isEditingName.value = true
+  nextTick(() => {
+    if (nameInputRef.value) {
+      nameInputRef.value.focus()
+      nameInputRef.value.select()
+    }
+  })
+}
+
+function cancelEditingName() {
+  isEditingName.value = false
+  editNameValue.value = ''
+}
+
+async function saveTrackerName() {
+  const newName = editNameValue.value.trim()
+  if (!newName) {
+    cancelEditingName()
+    return
+  }
+  if (newName === trackerName.value) {
+    isEditingName.value = false
+    return
+  }
+
+  isSavingName.value = true
+  try {
+    let updated = false
+
+    // 1. Try Supabase direct update
+    try {
+      const { data, error } = await supabase
+        .from('tracker')
+        .update({ name: newName, updated_at: new Date().toISOString() })
+        .eq('id', trackerId.value)
+        .select()
+
+      if (!error && data && data.length > 0) {
+        trackerName.value = data[0].name
+        updated = true
+      }
+    } catch (e) {
+      console.warn('[saveTrackerName Supabase]', e)
+    }
+
+    // 2. Fallback to /api/tracker/:id (Express DB proxy)
+    if (!updated) {
+      try {
+        const res = await fetch(`/api/tracker/${trackerId.value}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          trackerName.value = data.name
+          updated = true
+        }
+      } catch (e) {
+        console.warn('[saveTrackerName API proxy]', e)
+      }
+    }
+
+    if (updated) {
+      isEditingName.value = false
+      triggerToast(`Tracker renommé en « ${newName} »`, 'locked')
+    } else {
+      triggerToast('Échec de la mise à jour du nom', 'danger')
+    }
+  } catch (err) {
+    console.error('[saveTrackerName]', err)
+    triggerToast('Erreur lors du renommage', 'danger')
+  } finally {
+    isSavingName.value = false
+  }
+}
 
 // Previous position snapshot for movement detection (2nd decimal precision)
 let prevLat = null
@@ -276,17 +452,36 @@ async function fetchLatest() {
     let data = null
 
     // 1. Direct Supabase query (works in production on Vercel and localhost)
-    const { data: supaRows, error } = await supabase
+    let query = supabase
       .from('gps_logs')
-      .select('id, latitude, longitude, speed, satellites, charge, created_at')
+      .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at')
       .order('created_at', { ascending: false })
       .limit(1)
+
+    if (trackerId.value) {
+      query = query.eq('tracker_id', trackerId.value)
+    }
+
+    let { data: supaRows, error } = await query
+
+    // Fallback if specific tracker_id has no rows yet
+    if ((error || !supaRows || supaRows.length === 0) && trackerId.value) {
+      const fallbackQuery = await supabase
+        .from('gps_logs')
+        .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (!fallbackQuery.error && fallbackQuery.data?.length > 0) {
+        supaRows = fallbackQuery.data
+      }
+    }
 
     if (!error && supaRows && supaRows.length > 0) {
       const row = supaRows[0]
       const isOnline = Date.now() - new Date(row.created_at).getTime() <= 30_000
       data = {
         id: row.id,
+        tracker_id: row.tracker_id,
         lat: parseFloat(row.latitude),
         lng: parseFloat(row.longitude),
         speed: parseFloat(row.speed ?? 0),
@@ -298,7 +493,7 @@ async function fetchLatest() {
     } else {
       // 2. Fallback to /api/gps/latest if running local Express proxy
       try {
-        const res = await fetch('/api/gps/latest')
+        const res = await fetch(`/api/gps/latest?tracker_id=${trackerId.value || ''}`)
         if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           data = await res.json()
         }
@@ -348,11 +543,27 @@ async function fetchLatest() {
 async function fetchFirstRecord() {
   try {
     // 1. Direct Supabase query
-    const { data: firstRows, error } = await supabase
+    let query = supabase
       .from('gps_logs')
-      .select('created_at')
+      .select('created_at, tracker_id')
       .order('created_at', { ascending: true })
       .limit(1)
+
+    if (trackerId.value) {
+      query = query.eq('tracker_id', trackerId.value)
+    }
+
+    let { data: firstRows, error } = await query
+    if ((error || !firstRows || firstRows.length === 0) && trackerId.value) {
+      const fallbackQuery = await supabase
+        .from('gps_logs')
+        .select('created_at, tracker_id')
+        .order('created_at', { ascending: true })
+        .limit(1)
+      if (!fallbackQuery.error && fallbackQuery.data?.length > 0) {
+        firstRows = fallbackQuery.data
+      }
+    }
 
     if (!error && firstRows && firstRows.length > 0) {
       firstRecordDate.value = firstRows[0].created_at
@@ -362,7 +573,7 @@ async function fetchFirstRecord() {
 
     // 2. Fallback to /api/gps/first
     try {
-      const res = await fetch('/api/gps/first')
+      const res = await fetch(`/api/gps/first?tracker_id=${trackerId.value || ''}`)
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const d = await res.json()
         if (d?.created_at) {
@@ -469,16 +680,40 @@ function onFsAfterLeave() {
   }
 }
 
-// ─── Lock toggle with fancy feedback ─────────────────────────────────────────
-function toggleLock() {
-  isLocked.value = !isLocked.value
-  if (isLocked.value) {
+// ─── Lock toggle with fancy feedback & database sync ─────────────────────────
+async function toggleLock() {
+  const nextLockState = !isLocked.value
+  isLocked.value = nextLockState
+
+  if (nextLockState) {
     movementDetected.value = false
     triggerScanline('scanline-locked')
     triggerToast('Tracker sécurisé — Surveillance active', 'locked')
   } else {
     triggerScanline('scanline-unlocked')
     triggerToast('Tracker déverrouillé — Mode déplacement', 'unlocked')
+  }
+
+  // Persist lock status to DB
+  try {
+    let persisted = false
+    try {
+      const { error } = await supabase
+        .from('tracker')
+        .update({ locked: nextLockState, updated_at: new Date().toISOString() })
+        .eq('id', trackerId.value)
+      if (!error) persisted = true
+    } catch { /* ignore fallback */ }
+
+    if (!persisted) {
+      await fetch(`/api/tracker/${trackerId.value}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: nextLockState }),
+      })
+    }
+  } catch (err) {
+    console.error('[toggleLock persist]', err)
   }
 }
 
@@ -501,6 +736,7 @@ function executeDelete() {
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  await fetchTracker()
   await fetchLatest()
   await fetchFirstRecord()
   if (location.value) await initMap()
@@ -515,6 +751,21 @@ onMounted(async () => {
     })
     .subscribe()
 
+  // Realtime subscription for tracker updates (rename / lock changed from elsewhere)
+  trackerRealtimeChannel = supabase
+    .channel('tracker_card_channel')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tracker' }, (payload) => {
+      if (payload.new && payload.new.id == trackerId.value) {
+        if (payload.new.name && !isEditingName.value) {
+          trackerName.value = payload.new.name
+        }
+        if (typeof payload.new.locked === 'boolean') {
+          isLocked.value = payload.new.locked
+        }
+      }
+    })
+    .subscribe()
+
   // Request notification permission
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission()
@@ -524,6 +775,7 @@ onMounted(async () => {
 onUnmounted(() => {
   clearInterval(pollInterval)
   if (realtimeChannel) realtimeChannel.unsubscribe()
+  if (trackerRealtimeChannel) trackerRealtimeChannel.unsubscribe()
   document.body.classList.remove('map-fullscreen-active')
   if (map) map.remove()
   if (fsMap) fsMap.remove()
@@ -535,6 +787,110 @@ watch(location, async (newVal) => {
 </script>
 
 <style scoped>
+/* ─── Tracker Name & Rename Styles ────────────────────────────────────────── */
+.tracker-name-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.btn-rename-tracker {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  line-height: 1;
+}
+
+.btn-rename-tracker:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--accent-orange, #f05000);
+  transform: scale(1.1);
+}
+
+.btn-rename-tracker .pencil-icon {
+  display: block;
+}
+
+.tracker-rename-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tracker-name-input {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--accent-orange, #f05000);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+  outline: none;
+  width: 140px;
+  box-shadow: 0 0 0 2px rgba(240, 80, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.tracker-name-input:focus {
+  border-color: #ff6a1a;
+  box-shadow: 0 0 0 3px rgba(240, 80, 0, 0.35);
+}
+
+.btn-rename-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background: #22c55e;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-rename-save:hover:not(:disabled) {
+  background: #16a34a;
+  transform: scale(1.05);
+}
+
+.btn-rename-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-rename-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-rename-cancel:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
 /* Map wrapper */
 .tracker-map-wrapper { position: relative; }
 

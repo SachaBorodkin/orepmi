@@ -22,7 +22,7 @@ app.use(express.json())
 app.get('/api/gps/latest', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, latitude, longitude, speed, satellites, charge, created_at
+      `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at
        FROM gps_logs
        ORDER BY created_at DESC
        LIMIT 1`
@@ -32,6 +32,7 @@ app.get('/api/gps/latest', async (_req, res) => {
     const isOnline = Date.now() - new Date(row.created_at).getTime() <= 30_000
     res.json({
       id: row.id,
+      tracker_id: row.tracker_id,
       lat: parseFloat(row.latitude),
       lng: parseFloat(row.longitude),
       speed: parseFloat(row.speed ?? 0),
@@ -50,7 +51,7 @@ app.get('/api/gps/latest', async (_req, res) => {
 app.get('/api/gps/first', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT created_at FROM gps_logs ORDER BY created_at ASC LIMIT 1`
+      `SELECT created_at, tracker_id FROM gps_logs ORDER BY created_at ASC LIMIT 1`
     )
     res.json(rows[0] ?? null)
   } catch (err) {
@@ -63,13 +64,14 @@ app.get('/api/gps/first', async (_req, res) => {
 app.get('/api/gps/all', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, latitude, longitude, speed, satellites, created_at
+      `SELECT id, latitude, longitude, speed, satellites, tracker_id, created_at
        FROM gps_logs
        ORDER BY created_at DESC
        LIMIT 100`
     )
     res.json(rows.map(r => ({
       id: r.id,
+      tracker_id: r.tracker_id,
       lat: parseFloat(r.latitude),
       lng: parseFloat(r.longitude),
       speed: parseFloat(r.speed ?? 0),
@@ -78,6 +80,120 @@ app.get('/api/gps/all', async (_req, res) => {
     })))
   } catch (err) {
     console.error('[/api/gps/all]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/tracker — get first tracker or by id
+app.get('/api/tracker', async (req, res) => {
+  try {
+    const id = req.query.id
+    let query = `SELECT id, name, locked, owner_id, created_at, updated_at FROM public.tracker ORDER BY id ASC LIMIT 1`
+    let params = []
+    if (id) {
+      query = `SELECT id, name, locked, owner_id, created_at, updated_at FROM public.tracker WHERE id = $1 LIMIT 1`
+      params = [id]
+    }
+    const { rows } = await pool.query(query, params)
+    res.json(rows[0] ?? null)
+  } catch (err) {
+    console.error('[/api/tracker]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/trackers — get all trackers
+app.get('/api/trackers', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, locked, owner_id, created_at, updated_at FROM public.tracker ORDER BY id ASC`
+    )
+    res.json(rows)
+  } catch (err) {
+    console.error('[/api/trackers]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/tracker/:id — update name and/or locked status
+app.patch('/api/tracker/:id', async (req, res) => {
+  const { id } = req.params
+  const { name, locked } = req.body
+  try {
+    const fields = []
+    const params = []
+    let idx = 1
+
+    if (name !== undefined) {
+      fields.push(`name = $${idx++}`)
+      params.push(name.trim())
+    }
+    if (locked !== undefined) {
+      fields.push(`locked = $${idx++}`)
+      params.push(Boolean(locked))
+    }
+    fields.push(`updated_at = NOW()`)
+    params.push(id)
+
+    const query = `
+      UPDATE public.tracker
+      SET ${fields.join(', ')}
+      WHERE id = $${idx}
+      RETURNING id, name, locked, owner_id, created_at, updated_at
+    `
+    const { rows } = await pool.query(query, params)
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Tracker introuvable' })
+    }
+    res.json(rows[0])
+  } catch (err) {
+    console.error('[/api/tracker/:id]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/tracker/rename — helper to rename tracker
+app.post('/api/tracker/rename', async (req, res) => {
+  const { id, name } = req.body
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' })
+
+  try {
+    let targetId = id
+    if (!targetId) {
+      const firstRes = await pool.query('SELECT id FROM public.tracker ORDER BY id ASC LIMIT 1')
+      targetId = firstRes.rows[0]?.id
+    }
+    if (!targetId) return res.status(404).json({ error: 'Aucun tracker trouvé' })
+
+    const { rows } = await pool.query(
+      `UPDATE public.tracker SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, locked, owner_id, created_at, updated_at`,
+      [name.trim(), targetId]
+    )
+    res.json(rows[0])
+  } catch (err) {
+    console.error('[/api/tracker/rename]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/tracker/lock — helper to update lock status
+app.post('/api/tracker/lock', async (req, res) => {
+  const { id, locked } = req.body
+  try {
+    let targetId = id
+    if (!targetId) {
+      const firstRes = await pool.query('SELECT id FROM public.tracker ORDER BY id ASC LIMIT 1')
+      targetId = firstRes.rows[0]?.id
+    }
+    if (!targetId) return res.status(404).json({ error: 'Aucun tracker trouvé' })
+
+    const { rows } = await pool.query(
+      `UPDATE public.tracker SET locked = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, locked, owner_id, created_at, updated_at`,
+      [Boolean(locked), targetId]
+    )
+    res.json(rows[0])
+  } catch (err) {
+    console.error('[/api/tracker/lock]', err.message)
     res.status(500).json({ error: err.message })
   }
 })
