@@ -2,7 +2,7 @@
   <header class="site-header">
     <div class="header-container">
       <RouterLink to="/" class="logo-link" title="orepmi">
-        <img src="/assets/images/logos/logo_with_name.svg" alt="orepmi" class="site-logo" />
+        <img src="/assets/images/logos/logo_with_name.svg" alt="orepmi" class="site-logo" draggable="false" />
       </RouterLink>
 
       <!-- Desktop nav -->
@@ -20,6 +20,7 @@
                 class="user-avatar-img"
                 @error="avatarError = true"
                 referrerpolicy="no-referrer"
+                draggable="false"
               />
               <span v-else class="user-avatar-initial">{{ userInitials }}</span>
             </div>
@@ -70,7 +71,7 @@
       <div v-if="mobileMenuOpen" class="mobile-drawer" @keydown.escape="mobileMenuOpen = false">
         <div class="mobile-drawer-header">
           <RouterLink to="/" class="logo-link" @click="mobileMenuOpen = false">
-            <img src="/assets/images/logos/logo_with_name.svg" alt="orepmi" class="site-logo" />
+            <img src="/assets/images/logos/logo_with_name.svg" alt="orepmi" class="site-logo" draggable="false" />
           </RouterLink>
           <button class="drawer-close-btn" @click="mobileMenuOpen = false" aria-label="Fermer le menu">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -108,6 +109,7 @@
                   class="user-avatar-img"
                   @error="mobileAvatarError = true"
                   referrerpolicy="no-referrer"
+                  draggable="false"
                 />
                 <span v-else class="user-avatar-initial">{{ userInitials }}</span>
               </div>
