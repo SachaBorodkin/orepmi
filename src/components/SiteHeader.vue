@@ -1,14 +1,14 @@
 <template>
-  <header class="site-header">
+  <header class="site-header" @dragstart.prevent @dragover.prevent>
     <div class="header-container">
-      <RouterLink to="/" class="logo-link" title="orepmi">
+      <RouterLink to="/" class="logo-link" title="orepmi" draggable="false">
         <img src="/assets/images/logos/logo_with_name.svg" alt="orepmi" class="site-logo" draggable="false" />
       </RouterLink>
 
       <!-- Desktop nav -->
       <nav class="header-nav">
-        <RouterLink to="/" class="nav-link">Mes Trackers</RouterLink>
-        <RouterLink to="/aide" class="nav-link">Aide</RouterLink>
+        <RouterLink to="/" class="nav-link" draggable="false">Mes Trackers</RouterLink>
+        <RouterLink to="/aide" class="nav-link" draggable="false">Aide</RouterLink>
 
         <template v-if="user">
           <div class="user-profile-badge">
@@ -36,7 +36,7 @@
           </button>
         </template>
         <template v-else>
-          <RouterLink to="/login" class="btn-connexion btn-shimmer-interactive">
+          <RouterLink to="/login" class="btn-connexion btn-shimmer-interactive" draggable="false">
             <span class="btn-shimmer-sweep"></span>
             <span>Connexion</span>
           </RouterLink>
@@ -81,14 +81,14 @@
         </div>
 
         <nav class="mobile-nav">
-          <RouterLink to="/" class="mobile-nav-link" @click="mobileMenuOpen = false">
+          <RouterLink to="/" class="mobile-nav-link" @click="mobileMenuOpen = false" draggable="false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
             Mes Trackers
           </RouterLink>
-          <RouterLink to="/aide" class="mobile-nav-link" @click="mobileMenuOpen = false">
+          <RouterLink to="/aide" class="mobile-nav-link" @click="mobileMenuOpen = false" draggable="false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -128,10 +128,10 @@
             </button>
           </template>
           <template v-else>
-            <RouterLink to="/login" class="btn-white mobile-login-btn" @click="mobileMenuOpen = false">
+            <RouterLink to="/login" class="btn-white mobile-login-btn" @click="mobileMenuOpen = false" draggable="false">
               Connexion
             </RouterLink>
-            <RouterLink to="/signup" class="mobile-signup-link" @click="mobileMenuOpen = false">
+            <RouterLink to="/signup" class="mobile-signup-link" @click="mobileMenuOpen = false" draggable="false">
               Créer un compte →
             </RouterLink>
           </template>

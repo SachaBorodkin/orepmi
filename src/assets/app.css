@@ -68,14 +68,20 @@ a {
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
   -ms-user-select: none !important;
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
+  -webkit-touch-callout: none !important;
 }
 
+.site-header a,
+.site-header button,
 .site-header img,
-.site-header svg {
-  user-select: none !important;
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
+.site-header svg,
+.site-header span,
+.site-header div {
   -webkit-user-drag: none !important;
   -khtml-user-drag: none !important;
   -moz-user-drag: none !important;
@@ -174,13 +180,12 @@ a {
   padding: 8px 22px;
   border-radius: 6px;
   letter-spacing: -0.2px;
-  transition: opacity 0.2s ease, transform 0.1s ease;
+  transition: opacity 0.2s ease;
   display: inline-block;
 }
 
 .btn-connexion:hover {
   opacity: 0.92;
-  transform: translateY(-1px);
 }
 
 .btn-logout {
@@ -204,7 +209,7 @@ a {
 
 .btn-logout .logout-icon {
   color: #94a3b8;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s ease;
+  transition: color 0.22s ease;
   flex-shrink: 0;
 }
 
@@ -213,16 +218,13 @@ a {
   border-color: rgba(239, 68, 68, 0.38);
   color: #fca5a5;
   box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
-  transform: translateY(-1px);
 }
 
 .btn-logout:hover .logout-icon {
   color: #ef4444;
-  transform: translateX(2px);
 }
 
 .btn-logout:active {
-  transform: translateY(0);
   background: rgba(239, 68, 68, 0.2);
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15);
 }
