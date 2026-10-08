@@ -565,12 +565,89 @@ function hasMoved(lat1, lng1, lat2, lng2) {
   return fmt2(lat1) !== fmt2(lat2) || fmt2(lng1) !== fmt2(lng2)
 }
 
+function updateMapPosition(lat, lng, isUpdate = true) {
+  const latlng = [lat, lng]
+  const savedZoom = parseInt(localStorage.getItem('orepmi_map_zoom') || '16', 10)
+  const safeZoom = isNaN(savedZoom) || savedZoom < 2 || savedZoom > 19 ? 16 : savedZoom
+
+  if (map && marker) {
+    marker.setLatLng(latlng)
+    if (isUpdate) {
+      map.panTo(latlng, { animate: true, duration: 0.25 })
+    } else {
+      map.setView(latlng, map.getZoom() || safeZoom)
+    }
+  }
+
+  if (fsMap && fsMarker) {
+    fsMarker.setLatLng(latlng)
+    if (isUpdate) {
+      fsMap.panTo(latlng, { animate: true, duration: 0.25 })
+    } else {
+      fsMap.setView(latlng, fsMap.getZoom() || safeZoom)
+    }
+  }
+}
+
+function applyGpsData(raw) {
+  if (!raw) return
+  const lat = parseFloat(raw.latitude ?? raw.lat)
+  const lng = parseFloat(raw.longitude ?? raw.lng)
+  if (isNaN(lat) || isNaN(lng)) return
+
+  const data = {
+    id: raw.id,
+    tracker_id: raw.tracker_id,
+    lat,
+    lng,
+    speed: parseFloat(raw.speed ?? 0),
+    satellites: parseInt(raw.satellites ?? 0, 10),
+    charge: parseInt(raw.charge ?? 0, 10),
+    created_at: raw.created_at || new Date().toISOString(),
+    isOnline: true,
+  }
+
+  const prev = location.value
+  location.value = data
+
+  // Restore previous position snapshot from sessionStorage if needed
+  const storedLat = sessionStorage.getItem('orepmi_last_lat')
+  const storedLng = sessionStorage.getItem('orepmi_last_lng')
+  if (prevLat === null && storedLat && storedLng) {
+    prevLat = parseFloat(storedLat)
+    prevLng = parseFloat(storedLng)
+  }
+
+  // Detect movement (2nd decimal changed)
+  if (hasMoved(prevLat, prevLng, data.lat, data.lng)) {
+    lastMovementDate.value = data.created_at
+
+    if (prevLat !== null) {
+      if (isLocked.value) {
+        movementDetected.value = true
+        showMovementAlert(data.lat, data.lng)
+      } else {
+        movementDetected.value = true
+      }
+    }
+  }
+
+  prevLat = data.lat
+  prevLng = data.lng
+  sessionStorage.setItem('orepmi_last_lat', String(data.lat))
+  sessionStorage.setItem('orepmi_last_lng', String(data.lng))
+
+  // Run all threshold-based notifications
+  checkDataNotifications(data)
+
+  // Update map markers smoothly preserving current zoom
+  updateMapPosition(data.lat, data.lng, !!prev)
+}
+
 // ─── Fetch GPS data (Supabase direct + API fallback) ──────────────────────────
 async function fetchLatest() {
   try {
-    let data = null
-
-    // 1. Direct Supabase query (works in production on Vercel and localhost)
+    // 1. Direct Supabase query (fastest, direct connection)
     let query = supabase
       .from('gps_logs')
       .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at')
@@ -596,77 +673,18 @@ async function fetchLatest() {
     }
 
     if (!error && supaRows && supaRows.length > 0) {
-      const row = supaRows[0]
-      const isOnline = Date.now() - new Date(row.created_at).getTime() <= 30_000
-      data = {
-        id: row.id,
-        tracker_id: row.tracker_id,
-        lat: parseFloat(row.latitude),
-        lng: parseFloat(row.longitude),
-        speed: parseFloat(row.speed ?? 0),
-        satellites: row.satellites,
-        charge: row.charge ?? 0,
-        created_at: row.created_at,
-        isOnline,
+      applyGpsData(supaRows[0])
+      return
+    }
+
+    // 2. Fallback to /api/gps/latest if running local Express proxy
+    try {
+      const res = await fetch(`/api/gps/latest?tracker_id=${trackerId.value || ''}`)
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json()
+        if (data) applyGpsData(data)
       }
-    } else {
-      // 2. Fallback to /api/gps/latest if running local Express proxy
-      try {
-        const res = await fetch(`/api/gps/latest?tracker_id=${trackerId.value || ''}`)
-        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
-          data = await res.json()
-        }
-      } catch { /* ignore fallback error */ }
-    }
-
-    if (!data) return
-
-    const prev = location.value
-    location.value = data
-
-    // Restore previous position snapshot from sessionStorage if needed
-    const storedLat = sessionStorage.getItem('orepmi_last_lat')
-    const storedLng = sessionStorage.getItem('orepmi_last_lng')
-    if (prevLat === null && storedLat && storedLng) {
-      prevLat = parseFloat(storedLat)
-      prevLng = parseFloat(storedLng)
-    }
-
-    // Detect movement (2nd decimal changed)
-    if (hasMoved(prevLat, prevLng, data.lat, data.lng)) {
-      lastMovementDate.value = data.created_at
-
-      if (prevLat !== null) {
-        // Only fire alert if tracker is locked (not owner movement)
-        if (isLocked.value) {
-          movementDetected.value = true
-          showMovementAlert(data.lat, data.lng)
-        } else {
-          // Owner is moving — record silently, no alert
-          movementDetected.value = true
-        }
-      }
-    }
-
-    prevLat = data.lat
-    prevLng = data.lng
-    sessionStorage.setItem('orepmi_last_lat', String(data.lat))
-    sessionStorage.setItem('orepmi_last_lng', String(data.lng))
-
-    // Run all threshold-based notifications
-    checkDataNotifications(data)
-
-    // Update map markers — always fly to tracker at fixed zoom
-    if (map && marker && prev) {
-      const latlng = [data.lat, data.lng]
-      marker.setLatLng(latlng)
-      map.flyTo(latlng, 16, { animate: true, duration: 0.8 })
-    }
-    if (fsMap && fsMarker) {
-      const latlng = [data.lat, data.lng]
-      fsMarker.setLatLng(latlng)
-      fsMap.flyTo(latlng, 16, { animate: true, duration: 0.8 })
-    }
+    } catch { /* ignore fallback error */ }
   } catch (err) {
     console.error('[fetchLatest]', err)
   }
@@ -960,7 +978,10 @@ async function buildMap(el, lat, lng) {
   const L = (await import('leaflet')).default
   await import('leaflet/dist/leaflet.css')
 
-  const m = L.map(el, { zoomControl: true, attributionControl: true }).setView([lat, lng], 16)
+  const savedZoom = parseInt(localStorage.getItem('orepmi_map_zoom') || '16', 10)
+  const initialZoom = isNaN(savedZoom) || savedZoom < 2 || savedZoom > 19 ? 16 : savedZoom
+
+  const m = L.map(el, { zoomControl: true, attributionControl: true }).setView([lat, lng], initialZoom)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -975,6 +996,16 @@ async function buildMap(el, lat, lng) {
   })
 
   const mk = L.marker([lat, lng], { icon: pinIcon }).addTo(m)
+
+  m.on('zoomend', () => {
+    try {
+      const z = m.getZoom()
+      if (typeof z === 'number' && !isNaN(z)) {
+        localStorage.setItem('orepmi_map_zoom', String(z))
+      }
+    } catch {}
+  })
+
   setTimeout(() => m.invalidateSize(), 100)
   return { map: m, marker: mk }
 }
@@ -1195,15 +1226,25 @@ onMounted(async () => {
   await fetchLatest()
   await fetchFirstRecord()
   if (location.value) await initMap()
-  // Poll every 10 s
-  pollInterval = setInterval(fetchLatest, 10_000)
+  // Fast 1s fallback polling to match high-frequency (5Hz) tracker stream
+  pollInterval = setInterval(fetchLatest, 1000)
 
-  // Realtime subscription — reload the page on every new GPS entry
+  // Realtime subscription — instantaneous live stream on new GPS entry
   realtimeChannel = supabase
     .channel('gps_logs_card')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_logs' }, () => {
-      window.location.reload()
-    })
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'gps_logs' },
+      (payload) => {
+        if (payload?.new) {
+          if (!trackerId.value || payload.new.tracker_id == trackerId.value) {
+            applyGpsData(payload.new)
+            return
+          }
+        }
+        fetchLatest()
+      }
+    )
     .subscribe()
 
   // Realtime subscription for tracker updates (rename / lock changed from elsewhere)
