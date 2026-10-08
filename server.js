@@ -119,6 +119,57 @@ app.get('/api/gps/export', async (req, res) => {
   }
 })
 
+// GET /api/gps/history — trajectory points ordered by timestamp, plus distinct dates
+app.get('/api/gps/history', async (req, res) => {
+  try {
+    const trackerId = req.query.tracker_id
+    const selectedDate = req.query.date
+
+    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at
+       FROM gps_logs WHERE 1=1`
+    const params = []
+
+    if (trackerId) {
+      params.push(trackerId)
+      query += ` AND (tracker_id = $${params.length} OR tracker_id IS NULL)`
+    }
+    if (selectedDate) {
+      params.push(selectedDate)
+      query += ` AND SUBSTRING(created_at::text, 1, 10) = $${params.length}`
+    }
+    query += ` ORDER BY created_at ASC`
+
+    const { rows } = await pool.query(query, params)
+
+    let datesQuery = `SELECT SUBSTRING(created_at::text, 1, 10) AS date_str, COUNT(*) AS count
+       FROM gps_logs WHERE 1=1`
+    const datesParams = []
+    if (trackerId) {
+      datesParams.push(trackerId)
+      datesQuery += ` AND (tracker_id = $1 OR tracker_id IS NULL)`
+    }
+    datesQuery += ` GROUP BY date_str ORDER BY date_str DESC`
+    const datesRes = await pool.query(datesQuery, datesParams)
+
+    res.json({
+      dates: datesRes.rows.map(r => ({ date: r.date_str, count: parseInt(r.count, 10) })),
+      points: rows.map(r => ({
+        id: r.id,
+        tracker_id: r.tracker_id,
+        lat: parseFloat(r.latitude),
+        lng: parseFloat(r.longitude),
+        speed: parseFloat(r.speed ?? 0),
+        satellites: r.satellites,
+        charge: r.charge ?? 0,
+        created_at: r.created_at,
+      })),
+    })
+  } catch (err) {
+    console.error('[/api/gps/history]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // GET /api/tracker — get first tracker or by id
 app.get('/api/tracker', async (req, res) => {
   try {

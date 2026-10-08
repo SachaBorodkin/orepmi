@@ -1544,8 +1544,9 @@ body.overflow-hidden {
 
 /* Widen the tracker grid so the map card has breathing room */
 .trackers-grid {
-  grid-template-columns: 320px 280px;
+  grid-template-columns: 360px 280px;
 }
+
 
 /* Custom orange pulsing pin marker */
 .map-marker-pin {
