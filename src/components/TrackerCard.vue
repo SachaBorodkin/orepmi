@@ -306,12 +306,17 @@ let toastTimer          = null
 const showDeleteConfirm = ref(false)
 const deleteInProgress  = ref(false)
 
-// ─── Notification sentinels (prevent duplicate alerts) ────────────────────────
-let batteryLowNotified      = false  // fired when battery ≤ 20%
-let batteryCritNotified     = false  // fired when battery ≤ 10%
-let offlineNotified         = false  // fired when tracker goes offline (≥10 min)
-let speedAlertNotified      = false  // fired when speed > 80 km/h while locked
-let noSignalNotified        = false  // fired when satellites = 0
+// ─── Notification sentinels — stored in sessionStorage so they survive ─────────
+// window.location.reload() calls within the same tab session.
+const NOTIF_KEYS = {
+  batteryLow:  'orepmi_notif_battLow',
+  batteryCrit: 'orepmi_notif_battCrit',
+  offline:     'orepmi_notif_offline',
+  speed:       'orepmi_notif_speed',
+  noSignal:    'orepmi_notif_noSignal',
+}
+function notifGet(key)       { return sessionStorage.getItem(key) === '1' }
+function notifSet(key, val)  { val ? sessionStorage.setItem(key, '1') : sessionStorage.removeItem(key) }
 
 function triggerToast(text, type = 'locked') {
   if (toastTimer) clearTimeout(toastTimer)
@@ -678,9 +683,9 @@ function checkDataNotifications(data) {
   const online = delta < 10 * 60 * 1000
 
   // ── Battery critical ≤ 10% ──────────────────────────────────────────────────
-  if (charge <= 10 && !batteryCritNotified) {
-    batteryCritNotified = true
-    batteryLowNotified  = true // suppress the low-battery one too
+  if (charge <= 10 && !notifGet(NOTIF_KEYS.batteryCrit)) {
+    notifSet(NOTIF_KEYS.batteryCrit, true)
+    notifSet(NOTIF_KEYS.batteryLow, true) // suppress the low-battery one too
     pushNotification(
       '🔋 Batterie critique — Orepmi',
       `Batterie à ${charge}% — rechargez le tracker maintenant.`,
@@ -688,9 +693,9 @@ function checkDataNotifications(data) {
       'danger'
     )
   }
-  // ── Battery low ≤ 20% (only once per session) ────────────────────────────────
-  else if (charge <= 20 && !batteryLowNotified) {
-    batteryLowNotified = true
+  // ── Battery low ≤ 20% ────────────────────────────────────────────────────────
+  else if (charge <= 20 && !notifGet(NOTIF_KEYS.batteryLow)) {
+    notifSet(NOTIF_KEYS.batteryLow, true)
     pushNotification(
       '🔋 Batterie faible — Orepmi',
       `Batterie à ${charge}% — pensez à recharger le tracker.`,
@@ -698,13 +703,12 @@ function checkDataNotifications(data) {
       'danger'
     )
   }
-  // Reset crit sentinel when battery recovers above 15%
-  if (charge > 15) batteryCritNotified = false
-  if (charge > 25) batteryLowNotified  = false
+  if (charge > 15) notifSet(NOTIF_KEYS.batteryCrit, false)
+  if (charge > 25) notifSet(NOTIF_KEYS.batteryLow, false)
 
   // ── Tracker offline ──────────────────────────────────────────────────────────
-  if (!online && !offlineNotified) {
-    offlineNotified = true
+  if (!online && !notifGet(NOTIF_KEYS.offline)) {
+    notifSet(NOTIF_KEYS.offline, true)
     pushNotification(
       '📡 Tracker hors ligne — Orepmi',
       'Aucune donnée reçue depuis plus de 10 minutes.',
@@ -713,8 +717,8 @@ function checkDataNotifications(data) {
     )
   }
   // ── Tracker back online ──────────────────────────────────────────────────────
-  if (online && offlineNotified) {
-    offlineNotified = false
+  if (online && notifGet(NOTIF_KEYS.offline)) {
+    notifSet(NOTIF_KEYS.offline, false)
     pushNotification(
       '📡 Tracker en ligne — Orepmi',
       'Le tracker vient de reprendre contact.',
@@ -724,8 +728,8 @@ function checkDataNotifications(data) {
   }
 
   // ── Speed alert > 80 km/h while locked ──────────────────────────────────────
-  if (isLocked.value && speed > 80 && !speedAlertNotified) {
-    speedAlertNotified = true
+  if (isLocked.value && speed > 80 && !notifGet(NOTIF_KEYS.speed)) {
+    notifSet(NOTIF_KEYS.speed, true)
     pushNotification(
       '⚡ Vitesse élevée — Orepmi',
       `Vitesse détectée : ${Math.round(speed)} km/h alors que le tracker est verrouillé.`,
@@ -733,11 +737,11 @@ function checkDataNotifications(data) {
       'danger'
     )
   }
-  if (speed <= 60) speedAlertNotified = false // reset when speed drops back
+  if (speed <= 60) notifSet(NOTIF_KEYS.speed, false)
 
   // ── GPS signal lost (0 satellites) ──────────────────────────────────────────
-  if (sats === 0 && !noSignalNotified) {
-    noSignalNotified = true
+  if (sats === 0 && !notifGet(NOTIF_KEYS.noSignal)) {
+    notifSet(NOTIF_KEYS.noSignal, true)
     pushNotification(
       '📡 Signal GPS perdu — Orepmi',
       'Le tracker ne reçoit aucun satellite. La position peut être inexacte.',
@@ -745,7 +749,7 @@ function checkDataNotifications(data) {
       'danger'
     )
   }
-  if (sats >= 2) noSignalNotified = false // reset when signal recovers
+  if (sats >= 2) notifSet(NOTIF_KEYS.noSignal, false)
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
@@ -883,6 +887,19 @@ function executeDelete() {
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  // Request browser notification permission first so it's resolved before
+  // any pushNotification() call fires during fetchLatest()
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission()
+      if (perm === 'denied') {
+        triggerToast('Notifications bloquées — activez-les dans les paramètres du navigateur', 'danger')
+      }
+    } else if (Notification.permission === 'denied') {
+      console.warn('[orepmi] Notifications bloquées par le navigateur.')
+    }
+  }
+
   await fetchTracker()
   await fetchLatest()
   await fetchFirstRecord()
@@ -912,11 +929,6 @@ onMounted(async () => {
       }
     })
     .subscribe()
-
-  // Request notification permission
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission()
-  }
 })
 
 onUnmounted(() => {
