@@ -306,6 +306,13 @@ let toastTimer          = null
 const showDeleteConfirm = ref(false)
 const deleteInProgress  = ref(false)
 
+// ─── Notification sentinels (prevent duplicate alerts) ────────────────────────
+let batteryLowNotified      = false  // fired when battery ≤ 20%
+let batteryCritNotified     = false  // fired when battery ≤ 10%
+let offlineNotified         = false  // fired when tracker goes offline (≥10 min)
+let speedAlertNotified      = false  // fired when speed > 80 km/h while locked
+let noSignalNotified        = false  // fired when satellites = 0
+
 function triggerToast(text, type = 'locked') {
   if (toastTimer) clearTimeout(toastTimer)
   toastText.value = text
@@ -581,6 +588,9 @@ async function fetchLatest() {
     prevLat = data.lat
     prevLng = data.lng
 
+    // Run all threshold-based notifications
+    checkDataNotifications(data)
+
     // Update map markers — always fly to tracker at fixed zoom
     if (map && marker && prev) {
       const latlng = [data.lat, data.lng]
@@ -644,18 +654,98 @@ async function fetchFirstRecord() {
   }
 }
 
-// ─── Alert (browser notification + console) ───────────────────────────────────
-function showMovementAlert(lat, lng) {
-  const msg = `🚨 Mouvement détecté — nouvelle position (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-  console.warn('[orepmi]', msg)
+// ─── Notifications (browser push + in-card toast) ─────────────────────────────
+function pushNotification(title, body, toastText, toastType = 'locked') {
+  console.warn('[orepmi]', title, body)
+  triggerToast(toastText, toastType)
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification('Tracker Orepmi — Mouvement détecté', {
-        body: msg,
-        icon: '/assets/images/logos/logo_without_name.png',
-      })
+      new Notification(title, { body, icon: '/assets/images/logos/logo_without_name.png' })
     } catch { /* ignore */ }
   }
+}
+
+function showMovementAlert(lat, lng) {
+  const body = `Nouvelle position détectée (${lat.toFixed(4)}, ${lng.toFixed(4)})`
+  pushNotification('🚨 Tracker Orepmi — Mouvement détecté', body, '🚨 Mouvement non autorisé !', 'danger')
+}
+
+function checkDataNotifications(data) {
+  const charge = data.charge ?? 0
+  const speed  = parseFloat(data.speed ?? 0)
+  const sats   = data.satellites ?? 0
+  const delta  = Date.now() - new Date(data.created_at).getTime()
+  const online = delta < 10 * 60 * 1000
+
+  // ── Battery critical ≤ 10% ──────────────────────────────────────────────────
+  if (charge <= 10 && !batteryCritNotified) {
+    batteryCritNotified = true
+    batteryLowNotified  = true // suppress the low-battery one too
+    pushNotification(
+      '🔋 Batterie critique — Orepmi',
+      `Batterie à ${charge}% — rechargez le tracker maintenant.`,
+      `🔋 Batterie critique : ${charge}%`,
+      'danger'
+    )
+  }
+  // ── Battery low ≤ 20% (only once per session) ────────────────────────────────
+  else if (charge <= 20 && !batteryLowNotified) {
+    batteryLowNotified = true
+    pushNotification(
+      '🔋 Batterie faible — Orepmi',
+      `Batterie à ${charge}% — pensez à recharger le tracker.`,
+      `🔋 Batterie faible : ${charge}%`,
+      'danger'
+    )
+  }
+  // Reset crit sentinel when battery recovers above 15%
+  if (charge > 15) batteryCritNotified = false
+  if (charge > 25) batteryLowNotified  = false
+
+  // ── Tracker offline ──────────────────────────────────────────────────────────
+  if (!online && !offlineNotified) {
+    offlineNotified = true
+    pushNotification(
+      '📡 Tracker hors ligne — Orepmi',
+      'Aucune donnée reçue depuis plus de 10 minutes.',
+      '📡 Tracker hors ligne',
+      'danger'
+    )
+  }
+  // ── Tracker back online ──────────────────────────────────────────────────────
+  if (online && offlineNotified) {
+    offlineNotified = false
+    pushNotification(
+      '📡 Tracker en ligne — Orepmi',
+      'Le tracker vient de reprendre contact.',
+      '📡 Tracker de nouveau en ligne',
+      'unlocked'
+    )
+  }
+
+  // ── Speed alert > 80 km/h while locked ──────────────────────────────────────
+  if (isLocked.value && speed > 80 && !speedAlertNotified) {
+    speedAlertNotified = true
+    pushNotification(
+      '⚡ Vitesse élevée — Orepmi',
+      `Vitesse détectée : ${Math.round(speed)} km/h alors que le tracker est verrouillé.`,
+      `⚡ Vitesse : ${Math.round(speed)} km/h !`,
+      'danger'
+    )
+  }
+  if (speed <= 60) speedAlertNotified = false // reset when speed drops back
+
+  // ── GPS signal lost (0 satellites) ──────────────────────────────────────────
+  if (sats === 0 && !noSignalNotified) {
+    noSignalNotified = true
+    pushNotification(
+      '📡 Signal GPS perdu — Orepmi',
+      'Le tracker ne reçoit aucun satellite. La position peut être inexacte.',
+      '📡 Signal GPS perdu (0 sats)',
+      'danger'
+    )
+  }
+  if (sats >= 2) noSignalNotified = false // reset when signal recovers
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
