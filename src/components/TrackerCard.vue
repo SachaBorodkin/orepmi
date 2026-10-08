@@ -201,55 +201,62 @@
       <!-- Divider -->
       <div class="card-divider"></div>
 
-      <!-- Row 3: Lock status — movement -->
-      <div class="tracker-status">
-        <Transition name="status-pill-flip" mode="out-in">
-          <span
-            :key="isLocked ? 'locked' : 'unlocked'"
-            class="status-pill"
-            :class="isLocked ? 'status-pill-locked' : 'status-pill-unlocked'"
-          >
-            <span class="status-pill-dot"></span>
-            {{ isLocked ? 'VERROUILLÉ' : 'DÉVERROUILLÉ' }}
+      <!-- Row 3: Lock status & Telemetry Block -->
+      <div class="tracker-status-block">
+        <div class="tracker-status-left">
+          <Transition name="status-pill-flip" mode="out-in">
+            <span
+              :key="isLocked ? 'locked' : 'unlocked'"
+              class="status-pill"
+              :class="isLocked ? 'status-pill-locked' : 'status-pill-unlocked'"
+            >
+              <span class="status-pill-dot"></span>
+              {{ isLocked ? 'VERROUILLÉ' : 'DÉVERROUILLÉ' }}
+            </span>
+          </Transition>
+          <span class="tracker-sep"> — </span>
+          <span class="movement-state" :class="{ 'moving-active': isOnline }">
+            <span v-if="isOnline" class="movement-wave-indicator" title="En mouvement">
+              <span class="wave-bar"></span>
+              <span class="wave-bar"></span>
+              <span class="wave-bar"></span>
+            </span>
+            <span v-else class="movement-static-dot"></span>
+            {{ isOnline ? 'En mouvement' : 'Pas de mouvement' }}
           </span>
-        </Transition>
-        <span class="tracker-sep"> — </span>
-        <span class="movement-state" :class="{ 'moving-active': isOnline }">
-          <span v-if="isOnline" class="movement-wave-indicator" title="En mouvement">
-            <span class="wave-bar"></span>
-            <span class="wave-bar"></span>
-            <span class="wave-bar"></span>
+          <Transition name="alert-shake-pop">
+            <span
+              v-if="movementDetected && isLocked"
+              class="movement-alert-badge"
+              title="Alerte vol / mouvement non autorisé !"
+            >
+              🚨 <span class="alert-badge-text">ALERTE</span>
+            </span>
+          </Transition>
+        </div>
+
+        <!-- Telemetry: Speed + Satellites -->
+        <div v-if="location" class="tracker-telemetry">
+          <span class="telemetry-chip" title="Vitesse GPS">
+            <svg class="chip-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 14l3-3"/>
+              <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+            </svg>
+            {{ speedKmh }} km/h
           </span>
-          <span v-else class="movement-static-dot"></span>
-          {{ isOnline ? 'En mouvement' : 'Pas de mouvement' }}
-        </span>
-        <Transition name="alert-shake-pop">
-          <span
-            v-if="movementDetected && isLocked"
-            class="movement-alert-badge"
-            title="Alerte vol / mouvement non autorisé !"
-          >
-            🚨 <span class="alert-badge-text">ALERTE</span>
+          <span class="telemetry-chip" :class="satellites >= 4 ? 'sat-good' : satellites >= 1 ? 'sat-weak' : 'sat-none'" title="Satellites GPS">
+            <svg class="chip-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M8.5 15.5a6 6 0 0 1 7 0"/>
+              <circle cx="12" cy="19" r="1.5" fill="currentColor"/>
+            </svg>
+            {{ satellites }} sat{{ satellites !== 1 ? 's' : '' }}
           </span>
-        </Transition>
+        </div>
       </div>
 
-      <!-- Row 4: Speed + Satellites (from GPS data) -->
-      <div v-if="location" class="tracker-telemetry">
-        <span class="telemetry-chip" title="Vitesse GPS">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/>
-          </svg>
-          {{ speedKmh }} km/h
-        </span>
-        <span class="telemetry-sep">·</span>
-        <span class="telemetry-chip" :class="satellites >= 4 ? 'sat-good' : satellites >= 1 ? 'sat-weak' : 'sat-none'" title="Satellites GPS">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-          </svg>
-          {{ satellites }} sat{{ satellites !== 1 ? 's' : '' }}
-        </span>
-      </div>
+      <!-- Divider before Action Buttons -->
+      <div class="card-divider"></div>
 
       <!-- Buttons -->
       <div class="tracker-actions">
@@ -1855,50 +1862,77 @@ watch(location, async (newVal) => {
   font-style: italic;
 }
 
-/* ─── Telemetry row (speed + satellites) ─────────────────────────────────── */
-.tracker-telemetry {
+/* ─── Status & Telemetry Block ─────────────────────────────────────────── */
+.tracker-status-block {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.tracker-status-left {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  margin-top: 7px;
+  flex-wrap: wrap;
+}
+
+.tracker-telemetry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .telemetry-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   color: #94a3b8;
-  background: rgba(148, 163, 184, 0.07);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 5px;
-  padding: 2px 7px;
+  padding: 3px 7px;
   letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
-.telemetry-sep {
-  color: rgba(255, 255, 255, 0.18);
-  font-size: 12px;
+.chip-svg {
+  flex-shrink: 0;
+  color: #94a3b8;
 }
 
 /* Satellite quality states */
 .telemetry-chip.sat-good {
   color: #22c55e;
   background: rgba(34, 197, 94, 0.08);
-  border-color: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.telemetry-chip.sat-good .chip-svg {
+  color: #22c55e;
 }
 
 .telemetry-chip.sat-weak {
   color: #f59e0b;
   background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.telemetry-chip.sat-weak .chip-svg {
+  color: #f59e0b;
 }
 
 .telemetry-chip.sat-none {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.telemetry-chip.sat-none .chip-svg {
+  color: #ef4444;
 }
 
 .card-divider {
