@@ -159,10 +159,14 @@
         <span class="tracker-battery" :style="batteryColor">{{ battery }}%</span>
       </div>
 
-      <!-- Row 2: Added date -->
+      <!-- Row 2: Added date + online/offline badge -->
       <div class="tracker-added-date">
         <span v-if="firstRecordDate">Ajouté le {{ formatLongDate(firstRecordDate) }}</span>
         <span v-else>Aucune donnée</span>
+        <span :class="['conn-badge', isConnected ? 'conn-badge-online' : 'conn-badge-offline']">
+          <span class="conn-badge-dot"></span>
+          {{ isConnected ? 'EN LIGNE' : 'HORS LIGNE' }}
+        </span>
       </div>
 
       <!-- Divider -->
@@ -421,6 +425,13 @@ const isOnline = computed(() => {
   if (!location.value) return false
   const delta = Date.now() - new Date(location.value.created_at).getTime()
   return location.value.isOnline ?? delta <= 30_000
+})
+
+// Tracker is considered connected (online) if data arrived within the last 10 minutes
+const isConnected = computed(() => {
+  if (!location.value) return false
+  const delta = Date.now() - new Date(location.value.created_at).getTime()
+  return delta < 10 * 60 * 1000 // < 10 minutes
 })
 
 // Battery from DB charge column (null → 0)
@@ -1300,6 +1311,56 @@ watch(location, async (newVal) => {
 }
 
 /* Divider */
+/* ─── Online / Offline connection badge ─────────────────────────────────── */
+.tracker-added-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 7px 2px 5px;
+  border-radius: 20px;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.conn-badge-online {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.conn-badge-offline {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.conn-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conn-badge-online .conn-badge-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+  animation: dot-blink 1.8s ease-in-out infinite;
+}
+
+.conn-badge-offline .conn-badge-dot {
+  background: #64748b;
+}
+
 .card-divider {
   height: 1px; background: var(--border-color);
   margin: 12px 0;
