@@ -521,9 +521,12 @@
           <span class="route-pill-metric">{{ routeStats.distanceKm }} km</span>
           <span class="route-pill-sep">•</span>
           <span class="route-pill-pts">{{ routeStats.pointsCount }} pts</span>
-          <span class="route-pill-link">Carte 2 →</span>
+          <RouterLink to="/parcours" class="route-pill-link" @click.stop title="Ouvrir la page dédiée complète">
+            Page dédiée ↗
+          </RouterLink>
         </div>
       </div>
+
 
       <!-- Divider -->
 

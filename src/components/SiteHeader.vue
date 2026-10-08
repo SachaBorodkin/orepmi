@@ -8,6 +8,7 @@
       <!-- Desktop nav -->
       <nav class="header-nav">
         <RouterLink to="/" class="nav-link" draggable="false">Mes Trackers</RouterLink>
+        <RouterLink to="/parcours" class="nav-link" draggable="false">Parcours</RouterLink>
         <RouterLink to="/aide" class="nav-link" draggable="false">Aide</RouterLink>
 
         <template v-if="user">
@@ -87,6 +88,12 @@
               <circle cx="12" cy="10" r="3"/>
             </svg>
             Mes Trackers
+          </RouterLink>
+          <RouterLink to="/parcours" class="mobile-nav-link" @click="mobileMenuOpen = false" draggable="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Parcours
           </RouterLink>
           <RouterLink to="/aide" class="mobile-nav-link" @click="mobileMenuOpen = false" draggable="false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

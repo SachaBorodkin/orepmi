@@ -5,13 +5,16 @@ import Home from '../views/Home.vue'
 import Login from '../views/auth/Login.vue'
 import Signup from '../views/auth/Signup.vue'
 import Help from '../views/Help.vue'
+import Trajectory from '../views/Trajectory.vue'
 
 const routes = [
   { path: '/', name: 'home', component: Home },
+  { path: '/parcours', name: 'parcours', component: Trajectory },
   { path: '/login', name: 'login', component: Login },
   { path: '/signup', name: 'signup', component: Signup },
   { path: '/aide', name: 'help', component: Help },
 ]
+
 
 const router = createRouter({
   history: createWebHistory(),
