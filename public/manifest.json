@@ -1,0 +1,17 @@
+{
+  "name": "Orepmi - Suivi GPS Anti-Vol",
+  "short_name": "Orepmi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1014",
+  "theme_color": "#0c1014",
+  "icons": [
+    {
+      "src": "/assets/images/logos/logo_without_name.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

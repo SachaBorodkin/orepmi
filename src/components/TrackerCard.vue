@@ -88,6 +88,21 @@
         </div>
       </div>
 
+      <!-- Phone & Browser notification bell button -->
+      <button
+        class="map-notif-btn btn-expand-interactive"
+        :class="{ 'is-active': notifPermission === 'granted' }"
+        @click="requestNotificationPermission"
+        :title="notifPermission === 'granted' ? 'Notifications actives sur ce téléphone (cliquez pour tester)' : 'Activer les notifications sur ce téléphone'"
+        aria-label="Activer les notifications"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span v-if="notifPermission === 'granted'" class="notif-active-dot" title="Notifications actives"></span>
+      </button>
+
       <!-- Fullscreen button -->
       <button v-if="location" class="map-expand-btn btn-expand-interactive" @click="openFullscreen" title="Plein écran">
         <svg class="expand-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -294,6 +309,7 @@ const nameInputRef    = ref(null)
 const mapEl           = ref(null)
 const fullscreenMapEl = ref(null)
 const fullscreen      = ref(false)
+const notifPermission = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default')
 
 // ─── Fancy Action Animation States ───────────────────────────────────────────
 const scanlineActive    = ref(false)
@@ -574,6 +590,14 @@ async function fetchLatest() {
     const prev = location.value
     location.value = data
 
+    // Restore previous position snapshot from sessionStorage if needed
+    const storedLat = sessionStorage.getItem('orepmi_last_lat')
+    const storedLng = sessionStorage.getItem('orepmi_last_lng')
+    if (prevLat === null && storedLat && storedLng) {
+      prevLat = parseFloat(storedLat)
+      prevLng = parseFloat(storedLng)
+    }
+
     // Detect movement (2nd decimal changed)
     if (hasMoved(prevLat, prevLng, data.lat, data.lng)) {
       lastMovementDate.value = data.created_at
@@ -592,6 +616,8 @@ async function fetchLatest() {
 
     prevLat = data.lat
     prevLng = data.lng
+    sessionStorage.setItem('orepmi_last_lat', String(data.lat))
+    sessionStorage.setItem('orepmi_last_lng', String(data.lng))
 
     // Run all threshold-based notifications
     checkDataNotifications(data)
@@ -659,20 +685,145 @@ async function fetchFirstRecord() {
   }
 }
 
-// ─── Notifications (browser push + in-card toast) ─────────────────────────────
-function pushNotification(title, body, toastText, toastType = 'locked') {
+// ─── Sound alert for phone & desktop ──────────────────────────────────────────
+function playNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3)
+    gain.gain.setValueAtTime(0.35, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.3)
+  } catch {}
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
+
+async function setupPushSubscription() {
+  if (!('serviceWorker' in navigator)) return
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js')
+    await navigator.serviceWorker.ready
+
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && 'PushManager' in window) {
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BGXhG4-lvGG8PpOW0z2QV-W-UZHsdqNGaoRdbRsM3Mr-KNevKr9IF9ZDRUvk-egWZxPDwEMjf7qlsCG7zS_HxQc'
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey)
+        })
+      }
+      if (sub) {
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub)
+        })
+      }
+    }
+  } catch (err) {
+    console.warn('[setupPushSubscription]', err)
+  }
+}
+
+async function requestNotificationPermission() {
+  if (typeof Notification === 'undefined') {
+    triggerToast('Notifications non supportées sur ce navigateur', 'danger')
+    return
+  }
+
+  try {
+    const perm = await Notification.requestPermission()
+    notifPermission.value = perm
+
+    if (perm === 'granted') {
+      await setupPushSubscription()
+      triggerToast('🔔 Notifications actives sur ce téléphone !', 'unlocked')
+      await pushNotification(
+        '🔔 Orepmi — Notifications actives',
+        'Ce téléphone recevra les alertes de déplacement et d’état du tracker.',
+        'Alerte de test envoyée au téléphone',
+        'unlocked',
+        'orepmi-test'
+      )
+    } else if (perm === 'denied') {
+      triggerToast('Notifications bloquées dans les réglages du navigateur', 'danger')
+    }
+  } catch (err) {
+    console.error('[requestNotificationPermission]', err)
+  }
+}
+
+// ─── Notifications (Service Worker Mobile + Web Push API + in-card toast) ────
+async function pushNotification(title, body, toastText, toastType = 'locked', tag = 'orepmi-alert') {
   console.warn('[orepmi]', title, body)
   triggerToast(toastText, toastType)
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, { body, icon: '/assets/images/logos/logo_without_name.png' })
-    } catch { /* ignore */ }
+  playNotificationSound()
+
+  const options = {
+    body,
+    icon: '/assets/images/logos/logo_without_name.png',
+    badge: '/assets/images/logos/logo_without_name.png',
+    vibrate: [250, 100, 250, 100, 250],
+    tag,
+    renotify: true,
+    data: { url: '/' }
   }
+
+  // 1. Mobile Phone & Android Chrome: ServiceWorker showNotification
+  let swDone = false
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (reg && typeof reg.showNotification === 'function') {
+        await reg.showNotification(title, options)
+        swDone = true
+      }
+    } catch (e) {
+      console.warn('[SW showNotification fallback]', e)
+    }
+  }
+
+  // 2. Desktop browser fallback (new Notification is illegal constructor on Android Chrome)
+  if (!swDone && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification(title, options)
+    } catch (e) {
+      console.warn('[new Notification fallback]', e)
+    }
+  }
+
+  // 3. Web Push API: send push notification to registered phones via backend
+  try {
+    fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, tag }),
+    }).catch(() => {})
+  } catch {}
 }
 
 function showMovementAlert(lat, lng) {
   const body = `Nouvelle position détectée (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-  pushNotification('🚨 Tracker Orepmi — Mouvement détecté', body, '🚨 Mouvement non autorisé !', 'danger')
+  pushNotification('🚨 Tracker Orepmi — Mouvement détecté', body, '🚨 Mouvement non autorisé !', 'danger', 'orepmi-movement')
 }
 
 function checkDataNotifications(data) {
@@ -887,17 +1038,16 @@ function executeDelete() {
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  // Request browser notification permission first so it's resolved before
-  // any pushNotification() call fires during fetchLatest()
-  if ('Notification' in window) {
-    if (Notification.permission === 'default') {
-      const perm = await Notification.requestPermission()
-      if (perm === 'denied') {
-        triggerToast('Notifications bloquées — activez-les dans les paramètres du navigateur', 'danger')
-      }
-    } else if (Notification.permission === 'denied') {
-      console.warn('[orepmi] Notifications bloquées par le navigateur.')
+  if (typeof Notification !== 'undefined') {
+    notifPermission.value = Notification.permission
+    if (Notification.permission === 'granted') {
+      await setupPushSubscription()
     }
+  }
+
+  // Also register service worker in background regardless
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
   }
 
   await fetchTracker()
@@ -1077,6 +1227,44 @@ watch(location, async (newVal) => {
   backdrop-filter: blur(4px);
 }
 .map-expand-btn:hover { background: rgba(30, 40, 50, 0.95); }
+
+.map-notif-btn {
+  position: absolute;
+  top: 8px; right: 44px;
+  z-index: 10;
+  background: rgba(12, 16, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #94a3b8;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+.map-notif-btn:hover {
+  background: rgba(30, 40, 50, 0.95);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.map-notif-btn.is-active {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(12, 28, 20, 0.85);
+}
+.map-notif-btn.is-active:hover {
+  background: rgba(20, 45, 30, 0.95);
+  border-color: #22c55e;
+}
+.notif-active-dot {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 6px; height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #22c55e;
+  animation: dot-blink 2s ease-in-out infinite;
+}
 
 /* Fullscreen */
 .map-fullscreen-overlay {

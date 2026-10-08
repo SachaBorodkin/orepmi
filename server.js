@@ -4,10 +4,20 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import pg from 'pg'
+import webpush from 'web-push'
 
 const { Pool } = pg
 const app = express()
 const PORT = 3001
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BGXhG4-lvGG8PpOW0z2QV-W-UZHsdqNGaoRdbRsM3Mr-KNevKr9IF9ZDRUvk-egWZxPDwEMjf7qlsCG7zS_HxQc'
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '1auH_RUF7xxcn6EaST5UnF97A_TzyWJEBFeFSPuBpJE'
+
+try {
+  webpush.setVapidDetails('mailto:contact@orepmi.com', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+} catch (err) {
+  console.warn('[webpush vapid]', err.message)
+}
 
 // Direct pooler connection from Adonis .env
 const pool = new Pool({
@@ -239,6 +249,102 @@ app.post('/api/user/sync-avatar', async (req, res) => {
     console.error('[/api/user/sync-avatar]', err.message)
     res.status(500).json({ error: err.message })
   }
+})
+
+// ─── Web Push Notification Endpoints ─────────────────────────────────────────
+const inMemoryPushSubs = new Map()
+
+// Ensure table exists in Postgres (fails gracefully if no permissions)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    endpoint TEXT UNIQUE NOT NULL,
+    subscription JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  )
+`).catch(err => {
+  console.warn('[push_subscriptions table notice]', err.message)
+})
+
+// GET /api/push/vapid-public-key — return public VAPID key to browser
+app.get('/api/push/vapid-public-key', (_req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY })
+})
+
+// POST /api/push/subscribe — register device push subscription
+app.post('/api/push/subscribe', async (req, res) => {
+  const subscription = req.body
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: 'Subscription is missing or invalid' })
+  }
+
+  inMemoryPushSubs.set(subscription.endpoint, subscription)
+
+  try {
+    await pool.query(
+      `INSERT INTO public.push_subscriptions (endpoint, subscription)
+       VALUES ($1, $2)
+       ON CONFLICT (endpoint) DO UPDATE SET subscription = $2`,
+      [subscription.endpoint, JSON.stringify(subscription)]
+    )
+  } catch (err) {
+    console.warn('[save push_subscription to db failed, saved in memory]', err.message)
+  }
+
+  res.json({ success: true, count: inMemoryPushSubs.size })
+})
+
+// POST /api/push/send — broadcast push notification to registered devices (phone/browser)
+app.post('/api/push/send', async (req, res) => {
+  const { title, body, icon, url, tag } = req.body || {}
+  const payload = JSON.stringify({
+    title: title || 'Orepmi — Alerte',
+    body: body || 'Notification du tracker',
+    icon: icon || '/assets/images/logos/logo_without_name.png',
+    badge: '/assets/images/logos/logo_without_name.png',
+    url: url || '/',
+    tag: tag || 'orepmi-alert',
+  })
+
+  let subs = []
+  try {
+    const { rows } = await pool.query('SELECT endpoint, subscription FROM public.push_subscriptions')
+    if (rows && rows.length > 0) {
+      subs = rows.map(r => typeof r.subscription === 'string' ? JSON.parse(r.subscription) : r.subscription)
+    }
+  } catch {
+    // DB failed, use memory
+  }
+
+  // Merge with memory subscriptions
+  for (const [endpoint, sub] of inMemoryPushSubs.entries()) {
+    if (!subs.some(s => s.endpoint === endpoint)) {
+      subs.push(sub)
+    }
+  }
+
+  if (subs.length === 0) {
+    return res.json({ sent: 0, total: 0, message: 'No registered push devices yet' })
+  }
+
+  const results = await Promise.allSettled(
+    subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(sub, payload)
+      } catch (err) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          inMemoryPushSubs.delete(sub.endpoint)
+          try {
+            await pool.query('DELETE FROM public.push_subscriptions WHERE endpoint = $1', [sub.endpoint])
+          } catch {}
+        }
+        throw err
+      }
+    })
+  )
+
+  const sent = results.filter(r => r.status === 'fulfilled').length
+  res.json({ sent, total: subs.length })
 })
 
 app.listen(PORT, () => {
