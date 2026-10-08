@@ -70,15 +70,19 @@ app.get('/api/gps/first', async (_req, res) => {
   }
 })
 
-// GET /api/gps/all — all records for history/polling
-app.get('/api/gps/all', async (_req, res) => {
+// GET /api/gps/all — records for history/polling
+app.get('/api/gps/all', async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, latitude, longitude, speed, satellites, tracker_id, created_at
-       FROM gps_logs
-       ORDER BY created_at DESC
-       LIMIT 100`
-    )
+    const trackerId = req.query.tracker_id
+    let query = `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at
+       FROM gps_logs`
+    const params = []
+    if (trackerId) {
+      query += ` WHERE tracker_id = $1`
+      params.push(trackerId)
+    }
+    query += ` ORDER BY created_at DESC LIMIT 200`
+    const { rows } = await pool.query(query, params)
     res.json(rows.map(r => ({
       id: r.id,
       tracker_id: r.tracker_id,
@@ -86,10 +90,31 @@ app.get('/api/gps/all', async (_req, res) => {
       lng: parseFloat(r.longitude),
       speed: parseFloat(r.speed ?? 0),
       satellites: r.satellites,
+      charge: r.charge ?? 0,
       created_at: r.created_at,
     })))
   } catch (err) {
     console.error('[/api/gps/all]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/gps/export — export all records for a tracker
+app.get('/api/gps/export', async (req, res) => {
+  try {
+    const trackerId = req.query.tracker_id
+    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at
+       FROM gps_logs`
+    const params = []
+    if (trackerId) {
+      query += ` WHERE tracker_id = $1`
+      params.push(trackerId)
+    }
+    query += ` ORDER BY created_at ASC`
+    const { rows } = await pool.query(query, params)
+    res.json(rows)
+  } catch (err) {
+    console.error('[/api/gps/export]', err.message)
     res.status(500).json({ error: err.message })
   }
 })

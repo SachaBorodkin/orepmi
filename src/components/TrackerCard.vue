@@ -283,6 +283,33 @@
           Supprimer
         </button>
       </div>
+
+      <!-- Download / Export tracker data (ID: trackerId) -->
+      <div class="tracker-download-row">
+        <button
+          type="button"
+          class="btn-card-download"
+          :disabled="isDownloading"
+          @click="downloadTrackerData('csv')"
+          :title="`Télécharger l’ensemble des données GPS du tracker (ID: ${trackerId}) en format CSV (Excel)`"
+        >
+          <svg class="dl-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>{{ isDownloading ? 'Téléchargement…' : `Télécharger données (ID: ${trackerId})` }}</span>
+        </button>
+        <button
+          type="button"
+          class="btn-download-format"
+          :disabled="isDownloading"
+          @click="downloadTrackerData('json')"
+          title="Télécharger au format JSON brut"
+        >
+          JSON
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -1034,6 +1061,113 @@ function executeDelete() {
     showDeleteConfirm.value = false
     triggerToast('Suppression simulée (Mode test)', 'danger')
   }, 500)
+}
+
+// ─── Download Tracker Data (CSV / JSON) ───────────────────────────────────────
+const isDownloading = ref(false)
+
+async function downloadTrackerData(format = 'csv') {
+  if (isDownloading.value) return
+  isDownloading.value = true
+  triggerToast('Récupération des données du tracker…', 'unlocked')
+
+  try {
+    let rows = []
+
+    // 1. Try Supabase direct query
+    try {
+      let query = supabase
+        .from('gps_logs')
+        .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
+        .order('created_at', { ascending: true })
+
+      if (trackerId.value) {
+        query = query.eq('tracker_id', trackerId.value)
+      }
+
+      const { data, error } = await query
+      if (!error && data && data.length > 0) {
+        rows = data
+      }
+    } catch (e) {
+      console.warn('[downloadTrackerData Supabase error]', e)
+    }
+
+    // 2. Fallback to /api/gps/export proxy
+    if (rows.length === 0) {
+      try {
+        const res = await fetch(`/api/gps/export?tracker_id=${trackerId.value || ''}`)
+        if (res.ok) {
+          const apiData = await res.json()
+          if (Array.isArray(apiData)) rows = apiData
+        }
+      } catch (e) {
+        console.warn('[downloadTrackerData API fallback error]', e)
+      }
+    }
+
+    if (!rows || rows.length === 0) {
+      triggerToast(`Aucune donnée trouvée pour le tracker #${trackerId.value}`, 'danger')
+      return
+    }
+
+    const cleanName = (trackerName.value || `tracker_${trackerId.value}`).replace(/[^a-zA-Z0-9_-]/g, '_')
+    const dateStr = new Date().toISOString().slice(0, 10)
+
+    if (format === 'json') {
+      const payload = {
+        tracker_id: trackerId.value,
+        tracker_name: trackerName.value,
+        exported_at: new Date().toISOString(),
+        total_records: rows.length,
+        records: rows,
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${cleanName}_id${trackerId.value}_${dateStr}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } else {
+      // CSV Export (with UTF-8 BOM so Excel opens it with proper accents & columns)
+      const headers = ['id', 'tracker_id', 'date_heure', 'latitude', 'longitude', 'vitesse_kmh', 'satellites', 'batterie_pct']
+      const lines = [headers.join(';')]
+
+      for (const row of rows) {
+        lines.push([
+          row.id ?? '',
+          row.tracker_id ?? trackerId.value,
+          row.created_at ?? '',
+          row.latitude ?? '',
+          row.longitude ?? '',
+          row.speed ?? 0,
+          row.satellites ?? 0,
+          row.charge ?? 0,
+        ].join(';'))
+      }
+
+      const csvData = '\uFEFF' + lines.join('\r\n')
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${cleanName}_id${trackerId.value}_${dateStr}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+
+    triggerToast(`✓ ${rows.length} points GPS exportés (${format.toUpperCase()})`, 'unlocked')
+  } catch (err) {
+    console.error('[downloadTrackerData]', err)
+    triggerToast('Erreur lors du téléchargement des données', 'danger')
+  } finally {
+    isDownloading.value = false
+  }
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -2108,6 +2242,83 @@ watch(location, async (newVal) => {
 
 .btn-delete-interactive:hover .trash-icon {
   transform: rotate(-12deg) scale(1.1);
+}
+
+/* ─── Download Tracker Data Row ─────────────────────────────────────────── */
+.tracker-download-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-card-download {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.btn-card-download:hover:not(:disabled) {
+  background: rgba(240, 80, 0, 0.12);
+  border-color: var(--accent-orange, #f05000);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(240, 80, 0, 0.2);
+}
+
+.btn-card-download:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-card-download .dl-icon {
+  color: var(--accent-orange, #f05000);
+  transition: transform 0.2s ease;
+}
+
+.btn-card-download:hover:not(:disabled) .dl-icon {
+  transform: translateY(1px);
+}
+
+.btn-download-format {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.btn-download-format:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-download-format:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Status Pill & Wave Bars */
