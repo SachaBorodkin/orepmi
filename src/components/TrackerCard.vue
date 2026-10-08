@@ -754,11 +754,11 @@ onMounted(async () => {
   // Poll every 10 s
   pollInterval = setInterval(fetchLatest, 10_000)
 
-  // Realtime subscription for immediate position updates
+  // Realtime subscription — reload the page on every new GPS entry
   realtimeChannel = supabase
     .channel('gps_logs_card')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_logs' }, () => {
-      fetchLatest()
+      window.location.reload()
     })
     .subscribe()
 
