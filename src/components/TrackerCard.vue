@@ -581,16 +581,16 @@ async function fetchLatest() {
     prevLat = data.lat
     prevLng = data.lng
 
-    // Update map markers
+    // Update map markers — always fly to tracker at fixed zoom
     if (map && marker && prev) {
       const latlng = [data.lat, data.lng]
       marker.setLatLng(latlng)
-      map.panTo(latlng)
+      map.flyTo(latlng, 16, { animate: true, duration: 0.8 })
     }
     if (fsMap && fsMarker) {
       const latlng = [data.lat, data.lng]
       fsMarker.setLatLng(latlng)
-      fsMap.panTo(latlng)
+      fsMap.flyTo(latlng, 16, { animate: true, duration: 0.8 })
     }
   } catch (err) {
     console.error('[fetchLatest]', err)
@@ -681,7 +681,7 @@ async function buildMap(el, lat, lng) {
   const L = (await import('leaflet')).default
   await import('leaflet/dist/leaflet.css')
 
-  const m = L.map(el, { zoomControl: true, attributionControl: true }).setView([lat, lng], 15)
+  const m = L.map(el, { zoomControl: true, attributionControl: true }).setView([lat, lng], 16)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
