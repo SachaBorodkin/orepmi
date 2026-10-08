@@ -155,17 +155,31 @@
         </div>
 
         <span class="tracker-sep"> — </span>
-        <span class="tracker-battery-label">Batterie du tracker:</span>
-        <span class="tracker-battery" :style="batteryColor">{{ battery }}%</span>
+        <span class="tracker-battery-label">Batterie:</span>
+        <span class="tracker-battery-wrap" :title="`${battery}% de batterie`">
+          <!-- Battery icon: body + tip + fill bar -->
+          <svg class="battery-icon" width="20" height="11" viewBox="0 0 20 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0.5" y="0.5" width="17" height="10" rx="2" stroke="currentColor" stroke-width="1"/>
+            <rect x="18.5" y="3.5" width="1.5" height="4" rx="0.75" :fill="batteryColor.color"/>
+            <rect x="1.5" y="1.5" :width="Math.max(0, (battery / 100) * 15)" height="8" rx="1.2" :fill="batteryColor.color"/>
+          </svg>
+          <span class="tracker-battery" :style="batteryColor">{{ battery }}%</span>
+        </span>
       </div>
 
-      <!-- Row 2: Added date + online/offline badge -->
+      <!-- Row 2: Added date + online/offline badge + last-seen -->
       <div class="tracker-added-date">
         <span v-if="firstRecordDate">Ajouté le {{ formatLongDate(firstRecordDate) }}</span>
         <span v-else>Aucune donnée</span>
         <span :class="['conn-badge', isConnected ? 'conn-badge-online' : 'conn-badge-offline']">
           <span class="conn-badge-dot"></span>
           {{ isConnected ? 'EN LIGNE' : 'HORS LIGNE' }}
+        </span>
+        <span v-if="lastSeen" class="last-seen-label">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          {{ lastSeen }}
         </span>
       </div>
 
@@ -203,6 +217,23 @@
             🚨 <span class="alert-badge-text">ALERTE</span>
           </span>
         </Transition>
+      </div>
+
+      <!-- Row 4: Speed + Satellites (from GPS data) -->
+      <div v-if="location" class="tracker-telemetry">
+        <span class="telemetry-chip" title="Vitesse GPS">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/>
+          </svg>
+          {{ speedKmh }} km/h
+        </span>
+        <span class="telemetry-sep">·</span>
+        <span class="telemetry-chip" :class="satellites >= 4 ? 'sat-good' : satellites >= 1 ? 'sat-weak' : 'sat-none'" title="Satellites GPS">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          {{ satellites }} sat{{ satellites !== 1 ? 's' : '' }}
+        </span>
       </div>
 
       <!-- Buttons -->
@@ -436,6 +467,21 @@ const isConnected = computed(() => {
 
 // Battery from DB charge column (null → 0)
 const battery = computed(() => location.value?.charge ?? 0)
+
+// Speed in km/h (rounded, from already-fetched GPS row)
+const speedKmh = computed(() => {
+  const s = location.value?.speed ?? 0
+  return Math.round(s)
+})
+
+// Satellite count (from already-fetched GPS row)
+const satellites = computed(() => location.value?.satellites ?? 0)
+
+// Relative time since last GPS row was received
+const lastSeen = computed(() => {
+  if (!location.value?.created_at) return null
+  return formatRelative(location.value.created_at)
+})
 
 const batteryColor = computed(() => {
   const b = battery.value
@@ -1359,6 +1405,76 @@ watch(location, async (newVal) => {
 
 .conn-badge-offline .conn-badge-dot {
   background: #64748b;
+}
+
+/* ─── Battery icon wrapper ───────────────────────────────────────────────── */
+.tracker-battery-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.battery-icon {
+  color: #64748b;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ─── Last-seen label ────────────────────────────────────────────────────── */
+.last-seen-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+}
+
+/* ─── Telemetry row (speed + satellites) ─────────────────────────────────── */
+.tracker-telemetry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.telemetry-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.07);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 5px;
+  padding: 2px 7px;
+  letter-spacing: 0.01em;
+}
+
+.telemetry-sep {
+  color: rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+}
+
+/* Satellite quality states */
+.telemetry-chip.sat-good {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.telemetry-chip.sat-weak {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.telemetry-chip.sat-none {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .card-divider {
