@@ -150,6 +150,9 @@
               <span>Point {{ playbackIndex + 1 }} / {{ filteredPoints.length }}</span>
               <span v-if="currentScrubPoint" class="scrub-timestamp">
                 {{ formatDateTime(currentScrubPoint.created_at) }} • {{ currentScrubPoint.speed }} km/h
+                <template v-if="currentScrubPoint.altitude !== null"> • {{ Math.round(currentScrubPoint.altitude) }} m</template>
+                <template v-if="currentScrubPoint.course !== null"> • Cap {{ Math.round(currentScrubPoint.course) }}°</template>
+                <template v-if="currentScrubPoint.hdop !== null"> • ±{{ currentScrubPoint.hdop.toFixed(1) }} HDOP</template>
               </span>
             </div>
           </div>
@@ -242,6 +245,38 @@
           </div>
         </div>
 
+        <div v-if="routeStats.hasAlt" class="metric-card">
+          <div class="metric-card-icon icon-altitude">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
+            </svg>
+          </div>
+          <div class="metric-card-body">
+            <div class="metric-card-label">Altitude (Min / Max)</div>
+            <div class="metric-card-value">
+              {{ Math.round(routeStats.altitudeMin) }} - {{ Math.round(routeStats.altitudeMax) }} <span class="metric-unit">m</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="routeStats.hasHdop" class="metric-card">
+          <div class="metric-card-icon icon-precision">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="22" y1="12" x2="18" y2="12"/>
+              <line x1="6" y1="12" x2="2" y2="12"/>
+              <line x1="12" y1="6" x2="12" y2="2"/>
+              <line x1="12" y1="22" x2="12" y2="18"/>
+            </svg>
+          </div>
+          <div class="metric-card-body">
+            <div class="metric-card-label">Précision HDOP</div>
+            <div class="metric-card-value">
+              ±{{ routeStats.minHdop.toFixed(1) }} <span class="metric-unit">HDOP</span>
+            </div>
+          </div>
+        </div>
+
         <div class="metric-card">
           <div class="metric-card-icon icon-start">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -330,6 +365,9 @@
                 <th>Latitude</th>
                 <th>Longitude</th>
                 <th>Vitesse</th>
+                <th>Altitude</th>
+                <th>Cap</th>
+                <th>Précision</th>
                 <th>Batterie</th>
                 <th>Satellites</th>
                 <th>Action</th>
@@ -360,6 +398,22 @@
                   <span class="speed-badge" :class="p.speed > 50 ? 'speed-fast' : p.speed > 0 ? 'speed-moving' : 'speed-static'">
                     {{ Math.round(p.speed) }} km/h
                   </span>
+                </td>
+                <td>{{ p.altitude !== null ? Math.round(p.altitude) + ' m' : '--' }}</td>
+                <td>
+                  <span v-if="p.course !== null" class="course-cell">
+                    <svg class="course-arrow-icon" :style="{ transform: `rotate(${p.course}deg)` }" width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+                    </svg>
+                    {{ Math.round(p.course) }}°
+                  </span>
+                  <span v-else>--</span>
+                </td>
+                <td>
+                  <span v-if="p.hdop !== null" class="hdop-pill" :class="p.hdop <= 1.5 ? 'hdop-pill-good' : 'hdop-pill-ok'">
+                    ±{{ p.hdop.toFixed(1) }}
+                  </span>
+                  <span v-else>--</span>
                 </td>
                 <td>{{ p.charge }}%</td>
                 <td>{{ p.satellites }} sats</td>
@@ -533,11 +587,23 @@ const routeStats = computed(() => {
   let totalDist = 0
   let maxSpd = 0
   let sumSpd = 0
+  let minAlt = Infinity, maxAlt = -Infinity, hasAlt = false
+  let minHdop = Infinity, hasHdop = false
 
   for (let i = 0; i < pts.length; i++) {
     const p = pts[i]
     if (p.speed > maxSpd) maxSpd = p.speed
     sumSpd += p.speed
+
+    if (p.altitude !== null && p.altitude !== undefined) {
+      if (p.altitude < minAlt) minAlt = p.altitude
+      if (p.altitude > maxAlt) maxAlt = p.altitude
+      hasAlt = true
+    }
+    if (p.hdop !== null && p.hdop !== undefined) {
+      if (p.hdop < minHdop) minHdop = p.hdop
+      hasHdop = true
+    }
 
     if (i > 0) {
       const prev = pts[i - 1]
@@ -561,6 +627,11 @@ const routeStats = computed(() => {
     endTimeStr: formatDateTime(pts[pts.length - 1].created_at),
     avgSpeed: Math.round(sumSpd / pts.length),
     maxSpeed: Math.round(maxSpd),
+    hasAlt,
+    altitudeMin: hasAlt ? minAlt : null,
+    altitudeMax: hasAlt ? maxAlt : null,
+    hasHdop,
+    minHdop: hasHdop ? minHdop : null,
   }
 })
 
@@ -587,7 +658,7 @@ async function loadData() {
       while (true) {
         let query = supabase
           .from('gps_logs')
-          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
+          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at, hdop, altitude, course')
           .order('created_at', { ascending: true })
           .range(page * pageSize, (page + 1) * pageSize - 1)
 
@@ -641,6 +712,9 @@ async function loadData() {
           speed: parseFloat(r.speed ?? 0),
           satellites: parseInt(r.satellites ?? 0, 10),
           charge: parseInt(r.charge ?? 0, 10),
+          hdop: r.hdop !== null && r.hdop !== undefined ? parseFloat(r.hdop) : null,
+          altitude: r.altitude !== null && r.altitude !== undefined ? parseFloat(r.altitude) : null,
+          course: r.course !== null && r.course !== undefined ? parseFloat(r.course) : null,
           created_at: r.created_at,
           date_str: r.created_at ? r.created_at.slice(0, 10) : '',
         })
@@ -767,11 +841,14 @@ async function drawRoute() {
   })
   startMarker = L.marker([first.lat, first.lng], { icon: startIcon }).addTo(mapInstance)
   startMarker.bindPopup(`
-    <div style="font-family: inherit; font-size: 13px;">
+    <div style="font-family: inherit; font-size: 13px; line-height: 1.45;">
       <strong style="color: #22c55e;">Point de départ</strong><br/>
       <span>Date : ${formatDisplayDate(first.date_str)}</span><br/>
       <span>Heure : ${formatDateTime(first.created_at)}</span><br/>
-      <span>Vitesse : ${first.speed} km/h</span>
+      <span>Vitesse : ${first.speed} km/h • Sats : ${first.satellites}</span>
+      ${first.altitude !== null ? `<br/><span>Altitude : ${Math.round(first.altitude)} m</span>` : ''}
+      ${first.course !== null ? `<br/><span>Cap : ${Math.round(first.course)}°</span>` : ''}
+      ${first.hdop !== null ? `<br/><span>Précision : ±${first.hdop.toFixed(1)} HDOP</span>` : ''}
     </div>
   `)
 
@@ -786,11 +863,14 @@ async function drawRoute() {
     })
     endMarker = L.marker([last.lat, last.lng], { icon: endIcon }).addTo(mapInstance)
     endMarker.bindPopup(`
-      <div style="font-family: inherit; font-size: 13px;">
+      <div style="font-family: inherit; font-size: 13px; line-height: 1.45;">
         <strong style="color: #f05000;">Point d'arrivée</strong><br/>
         <span>Date : ${formatDisplayDate(last.date_str)}</span><br/>
         <span>Heure : ${formatDateTime(last.created_at)}</span><br/>
-        <span>Vitesse : ${last.speed} km/h</span>
+        <span>Vitesse : ${last.speed} km/h • Sats : ${last.satellites}</span>
+        ${last.altitude !== null ? `<br/><span>Altitude : ${Math.round(last.altitude)} m</span>` : ''}
+        ${last.course !== null ? `<br/><span>Cap : ${Math.round(last.course)}°</span>` : ''}
+        ${last.hdop !== null ? `<br/><span>Précision : ±${last.hdop.toFixed(1)} HDOP</span>` : ''}
       </div>
     `)
   }
@@ -859,6 +939,19 @@ function togglePlayback() {
   }
 }
 
+function updatePlaybackMarkerVisual(point) {
+  if (!playbackMarker || !point) return
+  playbackMarker.setLatLng([point.lat, point.lng])
+  const el = playbackMarker.getElement()
+  if (el) {
+    const pin = el.querySelector('.route-playback-pin')
+    if (pin) {
+      const rot = point.course !== null && point.course !== undefined ? point.course : 0
+      pin.style.transform = `rotate(${rot}deg)`
+    }
+  }
+}
+
 async function startPlayback() {
   const pts = filteredPoints.value
   if (!pts || pts.length < 2 || !mapInstance) return
@@ -876,7 +969,7 @@ async function startPlayback() {
       html: `
         <div class="route-playback-pin">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            <polygon points="12 2 19 21 12 17 5 21 12 2"/>
           </svg>
         </div>`,
       iconSize: [28, 28],
@@ -896,13 +989,13 @@ async function startPlayback() {
     if (playbackIndex.value >= pts.length - 1) {
       playbackIndex.value = pts.length - 1
       const last = pts[playbackIndex.value]
-      if (playbackMarker) playbackMarker.setLatLng([last.lat, last.lng])
+      updatePlaybackMarkerVisual(last)
       stopPlayback()
       return
     }
     const cur = pts[playbackIndex.value]
-    if (playbackMarker && cur) {
-      playbackMarker.setLatLng([cur.lat, cur.lng])
+    if (cur) {
+      updatePlaybackMarkerVisual(cur)
     }
   }, intervalTime)
 }
@@ -920,7 +1013,7 @@ function resetPlayback() {
   playbackIndex.value = 0
   const pts = filteredPoints.value
   if (playbackMarker && pts[0]) {
-    playbackMarker.setLatLng([pts[0].lat, pts[0].lng])
+    updatePlaybackMarkerVisual(pts[0])
   }
 }
 
@@ -928,9 +1021,7 @@ function onScrub() {
   const pts = filteredPoints.value
   const cur = pts[playbackIndex.value]
   if (cur && mapInstance) {
-    if (playbackMarker) {
-      playbackMarker.setLatLng([cur.lat, cur.lng])
-    }
+    updatePlaybackMarkerVisual(cur)
   }
 }
 
@@ -959,6 +1050,9 @@ onMounted(async () => {
           speed: parseFloat(payload.new.speed ?? 0),
           satellites: parseInt(payload.new.satellites ?? 0, 10),
           charge: parseInt(payload.new.charge ?? 0, 10),
+          hdop: payload.new.hdop !== null && payload.new.hdop !== undefined ? parseFloat(payload.new.hdop) : null,
+          altitude: payload.new.altitude !== null && payload.new.altitude !== undefined ? parseFloat(payload.new.altitude) : null,
+          course: payload.new.course !== null && payload.new.course !== undefined ? parseFloat(payload.new.course) : null,
           created_at: payload.new.created_at,
           date_str: payload.new.created_at ? payload.new.created_at.slice(0, 10) : '',
         }
@@ -1363,6 +1457,8 @@ watch(filteredPoints, () => {
 .metric-card-icon.icon-speed { color: #eab308; background: rgba(234, 179, 8, 0.1); border-color: rgba(234, 179, 8, 0.2); }
 .metric-card-icon.icon-start { color: #22c55e; background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); }
 .metric-card-icon.icon-end { color: #ef4444; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
+.metric-card-icon.icon-altitude { color: #38bdf8; background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); }
+.metric-card-icon.icon-precision { color: #10b981; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); }
 
 .metric-card-body {
   display: flex;
@@ -1671,6 +1767,39 @@ watch(filteredPoints, () => {
 .speed-fast {
   background: rgba(240, 80, 0, 0.2);
   color: #ff7849;
+}
+
+.course-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.course-arrow-icon {
+  color: #c084fc;
+  transition: transform 0.2s ease;
+}
+
+.hdop-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.hdop-pill-good {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.hdop-pill-ok {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 .btn-point-locate {

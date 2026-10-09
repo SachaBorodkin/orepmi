@@ -238,7 +238,15 @@ async function runMigrations() {
         FOR EACH ROW
         EXECUTE FUNCTION public.set_default_gps_tracker_id();
     `)
-    console.log('✓ Default trigger for gps_logs.tracker_id configured')
+
+    // 9. Add hdop, altitude, course columns to gps_logs
+    await pool.query(`
+      ALTER TABLE public.gps_logs
+      ADD COLUMN IF NOT EXISTS hdop float4,
+      ADD COLUMN IF NOT EXISTS altitude float4,
+      ADD COLUMN IF NOT EXISTS course float4;
+    `)
+    console.log('[migrate] Columns hdop, altitude, course added to gps_logs')
 
   } catch (err) {
     console.error('Migration error:', err)

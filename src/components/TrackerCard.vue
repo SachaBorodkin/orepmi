@@ -269,7 +269,7 @@
           </Transition>
         </div>
 
-        <!-- Telemetry: Speed + Satellites -->
+        <!-- Telemetry: Speed + Satellites + Altitude + Course + HDOP -->
         <div v-if="location" class="tracker-telemetry">
           <span class="telemetry-chip" title="Vitesse GPS">
             <svg class="chip-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -285,6 +285,28 @@
               <circle cx="12" cy="19" r="1.5" fill="currentColor"/>
             </svg>
             {{ satellites }} sat{{ satellites !== 1 ? 's' : '' }}
+          </span>
+          <span v-if="altitudeMeters !== null" class="telemetry-chip chip-altitude" :title="`Altitude GNSS : ${altitudeMeters} mètres`">
+            <svg class="chip-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
+            </svg>
+            {{ altitudeMeters }} m
+          </span>
+          <span v-if="courseDeg !== null" class="telemetry-chip chip-course" :title="`Cap / Direction : ${courseDeg}°`">
+            <svg class="chip-svg chip-course-arrow" :style="{ transform: `rotate(${courseDeg}deg)` }" width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+            </svg>
+            {{ courseDeg }}°
+          </span>
+          <span v-if="hdopValue !== null" class="telemetry-chip chip-hdop" :class="parseFloat(hdopValue) <= 1.5 ? 'hdop-good' : 'hdop-ok'" :title="`Précision horizontale HDOP : ±${hdopValue}`">
+            <svg class="chip-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="22" y1="12" x2="18" y2="12"/>
+              <line x1="6" y1="12" x2="2" y2="12"/>
+              <line x1="12" y1="6" x2="12" y2="2"/>
+              <line x1="12" y1="22" x2="12" y2="18"/>
+            </svg>
+            ±{{ hdopValue }}
           </span>
         </div>
       </div>
@@ -574,6 +596,24 @@ const speedKmh = computed(() => {
 // Satellite count (from already-fetched GPS row)
 const satellites = computed(() => location.value?.satellites ?? 0)
 
+// GNSS Altitude in meters
+const altitudeMeters = computed(() => {
+  if (location.value?.altitude === null || location.value?.altitude === undefined) return null
+  return Math.round(location.value.altitude)
+})
+
+// GNSS Course / Heading in degrees
+const courseDeg = computed(() => {
+  if (location.value?.course === null || location.value?.course === undefined) return null
+  return Math.round(location.value.course)
+})
+
+// GNSS HDOP (Horizontal Dilution of Precision)
+const hdopValue = computed(() => {
+  if (location.value?.hdop === null || location.value?.hdop === undefined) return null
+  return parseFloat(location.value.hdop).toFixed(1)
+})
+
 // Relative time since last GPS row was received
 const lastSeen = computed(() => {
   if (!location.value?.created_at) return null
@@ -600,6 +640,28 @@ function hasMoved(lat1, lng1, lat2, lng2) {
   return fmt2(lat1) !== fmt2(lat2) || fmt2(lng1) !== fmt2(lng2)
 }
 
+function getMarkerPopupHtml(lat, lng) {
+  const name = trackerName.value || `Tracker #${trackerId.value}`
+  const spd = speedKmh.value
+  const sats = satellites.value
+  const alt = altitudeMeters.value
+  const crs = courseDeg.value
+  const hdp = hdopValue.value
+
+  let extra = ''
+  if (alt !== null) extra += ` • <span>${alt} m</span>`
+  if (crs !== null) extra += ` • <span>Cap ${crs}°</span>`
+  if (hdp !== null) extra += `<br/><span style="color: #94a3b8;">Précision : ±${hdp} HDOP</span>`
+
+  return `
+    <div style="font-family: inherit; font-size: 12px; line-height: 1.45;">
+      <strong style="color: #f05000;">${name}</strong><br/>
+      <span>${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E</span><br/>
+      <span>${spd} km/h • ${sats} sats</span>${extra}
+    </div>
+  `
+}
+
 function updateMapPosition(lat, lng, isUpdate = true) {
   const latlng = [lat, lng]
   const savedZoom = parseInt(localStorage.getItem('orepmi_map_zoom') || '16', 10)
@@ -607,6 +669,7 @@ function updateMapPosition(lat, lng, isUpdate = true) {
 
   if (map && marker) {
     marker.setLatLng(latlng)
+    marker.setPopupContent(getMarkerPopupHtml(lat, lng))
     if (isUpdate) {
       map.panTo(latlng, { animate: true, duration: 0.25 })
     } else {
@@ -616,6 +679,7 @@ function updateMapPosition(lat, lng, isUpdate = true) {
 
   if (fsMap && fsMarker) {
     fsMarker.setLatLng(latlng)
+    fsMarker.setPopupContent(getMarkerPopupHtml(lat, lng))
     if (isUpdate) {
       fsMap.panTo(latlng, { animate: true, duration: 0.25 })
     } else {
@@ -638,6 +702,9 @@ function applyGpsData(raw) {
     speed: parseFloat(raw.speed ?? 0),
     satellites: parseInt(raw.satellites ?? 0, 10),
     charge: parseInt(raw.charge ?? 0, 10),
+    hdop: raw.hdop !== null && raw.hdop !== undefined ? parseFloat(raw.hdop) : null,
+    altitude: raw.altitude !== null && raw.altitude !== undefined ? parseFloat(raw.altitude) : null,
+    course: raw.course !== null && raw.course !== undefined ? parseFloat(raw.course) : null,
     created_at: raw.created_at || new Date().toISOString(),
     isOnline: true,
   }
@@ -686,7 +753,7 @@ async function fetchLatest() {
     // 1. Direct Supabase query (fastest, direct connection)
     let query = supabase
       .from('gps_logs')
-      .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at')
+      .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at, hdop, altitude, course')
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -700,7 +767,7 @@ async function fetchLatest() {
     if ((error || !supaRows || supaRows.length === 0) && trackerId.value) {
       const fallbackQuery = await supabase
         .from('gps_logs')
-        .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at')
+        .select('id, latitude, longitude, speed, satellites, charge, tracker_id, created_at, hdop, altitude, course')
         .order('created_at', { ascending: false })
         .limit(1)
       if (!fallbackQuery.error && fallbackQuery.data?.length > 0) {
@@ -1032,6 +1099,7 @@ async function buildMap(el, lat, lng) {
   })
 
   const mk = L.marker([lat, lng], { icon: pinIcon }).addTo(m)
+  mk.bindPopup(getMarkerPopupHtml(lat, lng))
 
   m.on('zoomend', () => {
     try {
@@ -1161,7 +1229,7 @@ async function downloadTrackerData(format = 'csv') {
       while (true) {
         let query = supabase
           .from('gps_logs')
-          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
+          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at, hdop, altitude, course')
           .order('created_at', { ascending: true })
           .range(page * pageSize, (page + 1) * pageSize - 1)
 
@@ -1223,7 +1291,7 @@ async function downloadTrackerData(format = 'csv') {
       URL.revokeObjectURL(url)
     } else {
       // CSV Export (with UTF-8 BOM so Excel opens it with proper accents & columns)
-      const headers = ['id', 'tracker_id', 'date_heure', 'latitude', 'longitude', 'vitesse_kmh', 'satellites', 'batterie_pct']
+      const headers = ['id', 'tracker_id', 'date_heure', 'latitude', 'longitude', 'vitesse_kmh', 'satellites', 'batterie_pct', 'hdop', 'altitude_m', 'cap_deg']
       const lines = [headers.join(';')]
 
       for (const row of rows) {
@@ -1236,6 +1304,9 @@ async function downloadTrackerData(format = 'csv') {
           row.speed ?? 0,
           row.satellites ?? 0,
           row.charge ?? 0,
+          row.hdop ?? '',
+          row.altitude ?? '',
+          row.course ?? '',
         ].join(';'))
       }
 
@@ -2027,6 +2098,47 @@ watch(location, async (newVal) => {
 
 .telemetry-chip.sat-none .chip-svg {
   color: #ef4444;
+}
+
+/* GNSS Altitude Chip */
+.telemetry-chip.chip-altitude {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+.telemetry-chip.chip-altitude .chip-svg {
+  color: #38bdf8;
+}
+
+/* GNSS Course / Heading Chip */
+.telemetry-chip.chip-course {
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.08);
+  border-color: rgba(192, 132, 252, 0.25);
+}
+.telemetry-chip.chip-course .chip-svg {
+  color: #c084fc;
+}
+.chip-course-arrow {
+  transition: transform 0.3s ease;
+}
+
+/* GNSS HDOP Accuracy Chip */
+.telemetry-chip.chip-hdop.hdop-good {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+.telemetry-chip.chip-hdop.hdop-good .chip-svg {
+  color: #22c55e;
+}
+.telemetry-chip.chip-hdop.hdop-ok {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+.telemetry-chip.chip-hdop.hdop-ok .chip-svg {
+  color: #f59e0b;
 }
 
 .card-divider {

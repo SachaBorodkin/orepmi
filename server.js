@@ -32,7 +32,7 @@ app.use(express.json())
 app.get('/api/gps/latest', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at
+      `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at, hdop, altitude, course
        FROM gps_logs
        ORDER BY created_at DESC
        LIMIT 1`
@@ -48,6 +48,9 @@ app.get('/api/gps/latest', async (_req, res) => {
       speed: parseFloat(row.speed ?? 0),
       satellites: row.satellites,
       charge: row.charge ?? 0,
+      hdop: row.hdop !== null ? parseFloat(row.hdop) : null,
+      altitude: row.altitude !== null ? parseFloat(row.altitude) : null,
+      course: row.course !== null ? parseFloat(row.course) : null,
       created_at: row.created_at,
       isOnline,
     })
@@ -74,7 +77,7 @@ app.get('/api/gps/first', async (_req, res) => {
 app.get('/api/gps/all', async (req, res) => {
   try {
     const trackerId = req.query.tracker_id
-    let query = `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at
+    let query = `SELECT id, latitude, longitude, speed, satellites, charge, tracker_id, created_at, hdop, altitude, course
        FROM gps_logs`
     const params = []
     if (trackerId) {
@@ -91,6 +94,9 @@ app.get('/api/gps/all', async (req, res) => {
       speed: parseFloat(r.speed ?? 0),
       satellites: r.satellites,
       charge: r.charge ?? 0,
+      hdop: r.hdop !== null ? parseFloat(r.hdop) : null,
+      altitude: r.altitude !== null ? parseFloat(r.altitude) : null,
+      course: r.course !== null ? parseFloat(r.course) : null,
       created_at: r.created_at,
     })))
   } catch (err) {
@@ -103,7 +109,7 @@ app.get('/api/gps/all', async (req, res) => {
 app.get('/api/gps/export', async (req, res) => {
   try {
     const trackerId = req.query.tracker_id
-    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at
+    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at, hdop, altitude, course
        FROM gps_logs`
     const params = []
     if (trackerId) {
@@ -125,7 +131,7 @@ app.get('/api/gps/history', async (req, res) => {
     const trackerId = req.query.tracker_id
     const selectedDate = req.query.date
 
-    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at
+    let query = `SELECT id, tracker_id, latitude, longitude, speed, satellites, charge, created_at, hdop, altitude, course
        FROM gps_logs WHERE 1=1`
     const params = []
 
@@ -161,6 +167,9 @@ app.get('/api/gps/history', async (req, res) => {
         speed: parseFloat(r.speed ?? 0),
         satellites: r.satellites,
         charge: r.charge ?? 0,
+        hdop: r.hdop !== null ? parseFloat(r.hdop) : null,
+        altitude: r.altitude !== null ? parseFloat(r.altitude) : null,
+        course: r.course !== null ? parseFloat(r.course) : null,
         created_at: r.created_at,
       })),
     })
