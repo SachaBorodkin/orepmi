@@ -37,128 +37,7 @@
     </Transition>
   </Teleport>
 
-  <!-- Fullscreen overlay for Carte 2 (Trajet / Chemin par date) -->
-  <Teleport to="body">
-    <Transition name="fs-fade" @after-leave="onHistoryFsAfterLeave">
-      <div v-if="historyFullscreen" class="map-fullscreen-overlay" @keydown.escape="closeHistoryFullscreen" tabindex="-1">
-        <div class="map-fullscreen-card history-fs-card">
-          <!-- Laser scanline sweep on open -->
-          <div class="fs-scanline"></div>
 
-          <!-- Futuristic HUD Corner Brackets -->
-          <div class="hud-corner hud-corner-tl"></div>
-          <div class="hud-corner hud-corner-tr"></div>
-          <div class="hud-corner hud-corner-bl"></div>
-          <div class="hud-corner hud-corner-br"></div>
-
-          <div ref="historyFsMapEl" class="map-fullscreen-container"></div>
-
-          <button class="map-fullscreen-close" @click="closeHistoryFullscreen" title="Fermer (Échap)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-
-          <!-- Top HUD floating toolbar for Carte 2 Fullscreen -->
-          <div class="history-fs-hud-top">
-            <div class="fs-hud-badge">
-              <span class="fs-badge-dot dot-history"></span>
-              CARTE 2 — TRACÉ DU TRAJET PAR DATE
-            </div>
-
-            <div class="history-date-picker-wrap fs-picker-wrap">
-              <button
-                type="button"
-                class="btn-date-arrow"
-                :disabled="isFirstDate"
-                @click="prevHistoryDate"
-                title="Jour précédent"
-              >
-                ‹
-              </button>
-              <select
-                v-model="selectedHistoryDate"
-                class="history-date-dropdown fs-date-dropdown"
-                @change="onDateChanged"
-                title="Filtrer le trajet par date"
-              >
-                <option value="all">Toutes les dates ({{ allHistoryPoints.length }} points)</option>
-                <option
-                  v-for="d in availableDates"
-                  :key="d.date"
-                  :value="d.date"
-                >
-                  {{ d.label }} ({{ d.count }} pts)
-                </option>
-              </select>
-              <button
-                type="button"
-                class="btn-date-arrow"
-                :disabled="isLastDate"
-                @click="nextHistoryDate"
-                title="Jour suivant"
-              >
-                ›
-              </button>
-            </div>
-
-            <div class="fs-history-actions">
-              <button
-                v-if="filteredHistoryPoints.length > 1"
-                type="button"
-                class="btn-history-tool"
-                :class="{ 'is-playing': isPlayingRoute }"
-                @click="toggleRoutePlayback"
-                :title="isPlayingRoute ? 'Pause' : 'Rejouer l\'animation du trajet'"
-              >
-                <svg v-if="!isPlayingRoute" width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-                <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16"/>
-                  <rect x="14" y="4" width="4" height="16"/>
-                </svg>
-                <span>{{ isPlayingRoute ? 'Pause' : 'Rejouer le trajet' }}</span>
-              </button>
-
-              <button
-                type="button"
-                class="btn-history-tool btn-icon-only"
-                @click="fitHistoryFsBounds"
-                title="Recadrer la carte"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Bottom HUD Bar: Route summary stats -->
-          <div class="map-fullscreen-coords history-fs-hud-bottom">
-            <span class="fs-coords-text">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-orange); margin-right: 4px; vertical-align: -1px;">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-              </svg>
-              {{ routeStats.distanceKm }} km parcourus
-            </span>
-            <span class="fs-coords-sep">|</span>
-            <span class="fs-coords-text">
-              📍 {{ routeStats.pointsCount }} points GPS
-            </span>
-            <span class="fs-coords-sep">|</span>
-            <span class="fs-coords-text">
-              ⏱️ {{ routeStats.durationStr }}
-            </span>
-            <span class="fs-coords-sep">|</span>
-            <span class="fs-coords-text fs-times-text">
-              Départ : {{ routeStats.startTimeStr }} ➔ Arrivée : {{ routeStats.endTimeStr }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
 
 
   <div class="tracker-card" :class="[scanlineType, { 'is-card-locked': isLocked, 'is-card-unlocked': !isLocked }]">
@@ -199,60 +78,9 @@
       </div>
     </Transition>
 
-    <!-- Map view switcher tabs: Carte 1 (Direct), Carte 2 (Trajet), 2 Cartes -->
-    <div class="tracker-maps-header">
-      <div class="map-tabs-group">
-        <button
-          type="button"
-          class="btn-map-tab"
-          :class="{ 'is-active': mapDisplayMode === 'live' }"
-          @click="setMapDisplayMode('live')"
-          title="Carte 1 : Position actuelle en direct"
-        >
-          <span class="tab-dot dot-live"></span>
-          <span>Carte 1 : Direct</span>
-        </button>
-
-        <button
-          type="button"
-          class="btn-map-tab"
-          :class="{ 'is-active': mapDisplayMode === 'history' }"
-          @click="setMapDisplayMode('history')"
-          title="Carte 2 : Tracé du chemin parcouru par date"
-        >
-          <span class="tab-dot dot-history"></span>
-          <span>Carte 2 : Trajet</span>
-          <span v-if="filteredHistoryPoints.length" class="tab-badge">{{ filteredHistoryPoints.length }}</span>
-        </button>
-
-        <button
-          type="button"
-          class="btn-map-tab"
-          :class="{ 'is-active': mapDisplayMode === 'dual' }"
-          @click="setMapDisplayMode('dual')"
-          title="Afficher les 2 cartes simultanément"
-        >
-          <svg class="tab-grid-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-            <rect x="3" y="3" width="7" height="18" rx="1"/>
-            <rect x="14" y="3" width="7" height="18" rx="1"/>
-          </svg>
-          <span>2 Cartes</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Map area -->
-    <div class="tracker-map-wrapper" :class="[`mode-${mapDisplayMode}`]">
-      <!-- CARTE 1 : POSITION EN DIRECT -->
-      <div v-show="mapDisplayMode === 'live' || mapDisplayMode === 'dual'" class="card-map-section map-section-live">
-        <div v-if="mapDisplayMode === 'dual'" class="map-section-label">
-          <span class="section-label-dot dot-live"></span>
-          <span class="section-label-title">Carte 1 — Position en direct</span>
-          <span :class="['section-live-pill', isOnline ? 'pill-online' : 'pill-offline']">
-            {{ isOnline ? 'LIVE' : 'HORS LIGNE' }}
-          </span>
-        </div>
-
+    <!-- Map area: Direct location map only -->
+    <div class="tracker-map-wrapper">
+      <div class="card-map-section map-section-live">
         <div v-if="location" ref="mapEl" class="tracker-map-live"></div>
         <div v-else class="tracker-map-live tracker-map-empty">
           <div class="map-empty-inner">
@@ -280,141 +108,11 @@
         </button>
 
         <!-- Fullscreen button Carte 1 -->
-        <button v-if="location" class="map-expand-btn btn-expand-interactive" @click="openFullscreen" title="Plein écran Carte 1">
+        <button v-if="location" class="map-expand-btn btn-expand-interactive" @click="openFullscreen" title="Plein écran">
           <svg class="expand-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
           </svg>
         </button>
-      </div>
-
-      <!-- CARTE 2 : HISTORIQUE DU TRAJET (LE CHEMIN FAIT PAR DATE) -->
-      <div v-show="mapDisplayMode === 'history' || mapDisplayMode === 'dual'" class="card-map-section map-section-history">
-        <!-- Second Map Header: Date selector & Controls -->
-        <div class="history-map-header">
-          <div class="history-header-left">
-            <div class="history-map-badge">
-              <span class="section-label-dot dot-history"></span>
-              <span class="badge-text">Carte 2 — Trajet par date</span>
-            </div>
-
-            <div class="history-date-picker-wrap">
-              <button
-                type="button"
-                class="btn-date-arrow"
-                :disabled="isFirstDate"
-                @click="prevHistoryDate"
-                title="Jour précédent"
-              >
-                ‹
-              </button>
-
-              <select
-                v-model="selectedHistoryDate"
-                class="history-date-dropdown"
-                @change="onDateChanged"
-                title="Choisir la date du tracé"
-              >
-                <option value="all">Toutes les dates ({{ allHistoryPoints.length }} pts)</option>
-                <option
-                  v-for="d in availableDates"
-                  :key="d.date"
-                  :value="d.date"
-                >
-                  {{ d.label }} ({{ d.count }} pts)
-                </option>
-              </select>
-
-              <button
-                type="button"
-                class="btn-date-arrow"
-                :disabled="isLastDate"
-                @click="nextHistoryDate"
-                title="Jour suivant"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          <div class="history-header-actions">
-            <!-- Route playback button -->
-            <button
-              v-if="filteredHistoryPoints.length > 1"
-              type="button"
-              class="btn-history-tool"
-              :class="{ 'is-playing': isPlayingRoute }"
-              @click="toggleRoutePlayback"
-              :title="isPlayingRoute ? 'Pause' : 'Rejouer le déplacement'"
-            >
-              <svg v-if="!isPlayingRoute" width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-              <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16"/>
-                <rect x="14" y="4" width="4" height="16"/>
-              </svg>
-              <span class="btn-tool-label">{{ isPlayingRoute ? 'Pause' : 'Rejouer' }}</span>
-            </button>
-
-            <!-- Fit bounds button -->
-            <button
-              type="button"
-              class="btn-history-tool btn-icon-only"
-              @click="fitHistoryBounds"
-              title="Recadrer la vue sur tout le parcours"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-              </svg>
-            </button>
-
-            <!-- Fullscreen button Carte 2 -->
-            <button
-              type="button"
-              class="btn-history-tool btn-icon-only"
-              @click="openHistoryFullscreen"
-              title="Plein écran Carte 2"
-            >
-              <svg class="expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- The second map container -->
-        <div v-if="filteredHistoryPoints.length > 0" ref="historyMapEl" class="tracker-map-live tracker-map-second"></div>
-        <div v-else class="tracker-map-live tracker-map-empty">
-          <div class="map-empty-inner">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); margin-bottom:6px">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <span>Aucun point enregistré pour cette date</span>
-          </div>
-        </div>
-
-        <!-- Second Map Route Stats HUD Bar -->
-        <div v-if="filteredHistoryPoints.length > 0" class="history-route-bar">
-          <div class="route-metric" title="Distance totale calculée">
-            <span class="metric-icon">📏</span>
-            <span class="metric-val">{{ routeStats.distanceKm }} km</span>
-          </div>
-          <div class="route-metric" title="Nombre de points GPS tracés">
-            <span class="metric-icon">📍</span>
-            <span class="metric-val">{{ routeStats.pointsCount }} pts</span>
-          </div>
-          <div class="route-metric" title="Durée du déplacement">
-            <span class="metric-icon">⏱️</span>
-            <span class="metric-val">{{ routeStats.durationStr }}</span>
-          </div>
-          <div class="route-metric route-metric-times" title="Horaires de départ et d'arrivée">
-            <span class="metric-time-start">🟢 {{ routeStats.startTimeStr }}</span>
-            <span class="metric-arrow">➔</span>
-            <span class="metric-time-end">🏁 {{ routeStats.endTimeStr }}</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -506,30 +204,30 @@
         </span>
       </div>
 
-      <!-- Route summary pill linking directly to Carte 2 -->
-      <div
-        v-if="availableDates.length > 0"
-        class="tracker-route-summary-pill"
-        @click="setMapDisplayMode(mapDisplayMode === 'history' ? 'dual' : 'history')"
-        title="Cliquer pour afficher le tracé sur la Carte 2"
+      <!-- Movement History Link (Dedicated Page) -->
+      <RouterLink
+        :to="{ path: '/parcours', query: { tracker_id: trackerId } }"
+        class="tracker-parcours-nav-pill"
+        title="Consulter l'historique complet des parcours et déplacements sur la page dédiée"
       >
-        <div class="route-pill-left">
-          <span class="route-pill-dot"></span>
-          <span class="route-pill-title">Parcours {{ formatDisplayDate(selectedHistoryDate) }}</span>
+        <div class="nav-pill-left">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="nav-pill-icon">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          <span class="nav-pill-title">Historique des parcours &amp; trajets</span>
         </div>
-        <div class="route-pill-right">
-          <span class="route-pill-metric">{{ routeStats.distanceKm }} km</span>
-          <span class="route-pill-sep">•</span>
-          <span class="route-pill-pts">{{ routeStats.pointsCount }} pts</span>
-          <RouterLink to="/parcours" class="route-pill-link" @click.stop title="Ouvrir la page dédiée complète">
-            Page dédiée ↗
-          </RouterLink>
+        <div class="nav-pill-right">
+          <span class="nav-pill-action">
+            <span>Voir les trajets</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </span>
         </div>
-      </div>
-
+      </RouterLink>
 
       <!-- Divider -->
-
       <div class="card-divider"></div>
 
       <!-- Row 3: Lock status & Telemetry Block -->
@@ -561,7 +259,12 @@
               class="movement-alert-badge"
               title="Alerte vol / mouvement non autorisé !"
             >
-              🚨 <span class="alert-badge-text">ALERTE</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" class="alert-badge-svg">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span class="alert-badge-text">ALERTE</span>
             </span>
           </Transition>
         </div>
@@ -676,20 +379,6 @@ const fullscreenMapEl = ref(null)
 const fullscreen      = ref(false)
 const notifPermission = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default')
 
-// ─── Map Modes & Carte 2 (Trajet par date) State ─────────────────────────────
-const mapDisplayMode       = ref('dual') // 'dual' | 'history' | 'live'
-const historyMapEl         = ref(null)
-const historyFsMapEl       = ref(null)
-const historyFullscreen    = ref(false)
-const selectedHistoryDate  = ref('all') // 'all' or 'YYYY-MM-DD'
-const allHistoryPoints     = ref([])
-const isLoadingHistory     = ref(false)
-
-// Route Playback Animation State
-const isPlayingRoute       = ref(false)
-const playbackIndex        = ref(0)
-let playbackInterval       = null
-
 // ─── Fancy Action Animation States ───────────────────────────────────────────
 const scanlineActive    = ref(false)
 const scanlineType      = ref('')
@@ -735,18 +424,6 @@ let map                     = null
 let marker                  = null
 let fsMap                   = null
 let fsMarker                = null
-let historyMap              = null
-let historyPolyline         = null
-let historyCasingLine       = null
-let historyStartMarker      = null
-let historyEndMarker        = null
-let historyPlaybackMarker   = null
-let historyFsMap            = null
-let historyFsPolyline       = null
-let historyFsCasingLine     = null
-let historyFsStartMarker    = null
-let historyFsEndMarker      = null
-let historyFsPlaybackMarker = null
 let pollInterval            = null
 let realtimeChannel         = null
 let trackerRealtimeChannel  = null
@@ -1000,9 +677,6 @@ function applyGpsData(raw) {
 
   // Update map markers smoothly preserving current zoom
   updateMapPosition(data.lat, data.lng, !!prev)
-
-  // Append to history route for Carte 2
-  appendGpsToHistory(data)
 }
 
 
@@ -1170,9 +844,9 @@ async function requestNotificationPermission() {
 
     if (perm === 'granted') {
       await setupPushSubscription()
-      triggerToast('🔔 Notifications actives sur ce téléphone !', 'unlocked')
+      triggerToast('Notifications actives sur ce téléphone !', 'unlocked')
       await pushNotification(
-        '🔔 Orepmi — Notifications actives',
+        'Orepmi — Notifications actives',
         'Ce téléphone recevra les alertes de déplacement et d’état du tracker.',
         'Alerte de test envoyée au téléphone',
         'unlocked',
@@ -1237,7 +911,7 @@ async function pushNotification(title, body, toastText, toastType = 'locked', ta
 
 function showMovementAlert(lat, lng) {
   const body = `Nouvelle position détectée (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-  pushNotification('🚨 Tracker Orepmi — Mouvement détecté', body, '🚨 Mouvement non autorisé !', 'danger', 'orepmi-movement')
+  pushNotification('Tracker Orepmi — Mouvement détecté', body, 'Mouvement non autorisé !', 'danger', 'orepmi-movement')
 }
 
 function checkDataNotifications(data) {
@@ -1252,9 +926,9 @@ function checkDataNotifications(data) {
     notifSet(NOTIF_KEYS.batteryCrit, true)
     notifSet(NOTIF_KEYS.batteryLow, true) // suppress the low-battery one too
     pushNotification(
-      '🔋 Batterie critique — Orepmi',
+      'Batterie critique — Orepmi',
       `Batterie à ${charge}% — rechargez le tracker maintenant.`,
-      `🔋 Batterie critique : ${charge}%`,
+      `Batterie critique : ${charge}%`,
       'danger'
     )
   }
@@ -1262,9 +936,9 @@ function checkDataNotifications(data) {
   else if (charge <= 20 && !notifGet(NOTIF_KEYS.batteryLow)) {
     notifSet(NOTIF_KEYS.batteryLow, true)
     pushNotification(
-      '🔋 Batterie faible — Orepmi',
+      'Batterie faible — Orepmi',
       `Batterie à ${charge}% — pensez à recharger le tracker.`,
-      `🔋 Batterie faible : ${charge}%`,
+      `Batterie faible : ${charge}%`,
       'danger'
     )
   }
@@ -1275,9 +949,9 @@ function checkDataNotifications(data) {
   if (!online && !notifGet(NOTIF_KEYS.offline)) {
     notifSet(NOTIF_KEYS.offline, true)
     pushNotification(
-      '📡 Tracker hors ligne — Orepmi',
+      'Tracker hors ligne — Orepmi',
       'Aucune donnée reçue depuis plus de 10 minutes.',
-      '📡 Tracker hors ligne',
+      'Tracker hors ligne',
       'danger'
     )
   }
@@ -1285,9 +959,9 @@ function checkDataNotifications(data) {
   if (online && notifGet(NOTIF_KEYS.offline)) {
     notifSet(NOTIF_KEYS.offline, false)
     pushNotification(
-      '📡 Tracker en ligne — Orepmi',
+      'Tracker en ligne — Orepmi',
       'Le tracker vient de reprendre contact.',
-      '📡 Tracker de nouveau en ligne',
+      'Tracker de nouveau en ligne',
       'unlocked'
     )
   }
@@ -1296,9 +970,9 @@ function checkDataNotifications(data) {
   if (isLocked.value && speed > 80 && !notifGet(NOTIF_KEYS.speed)) {
     notifSet(NOTIF_KEYS.speed, true)
     pushNotification(
-      '⚡ Vitesse élevée — Orepmi',
+      'Vitesse élevée — Orepmi',
       `Vitesse détectée : ${Math.round(speed)} km/h alors que le tracker est verrouillé.`,
-      `⚡ Vitesse : ${Math.round(speed)} km/h !`,
+      `Vitesse : ${Math.round(speed)} km/h !`,
       'danger'
     )
   }
@@ -1308,9 +982,9 @@ function checkDataNotifications(data) {
   if (sats === 0 && !notifGet(NOTIF_KEYS.noSignal)) {
     notifSet(NOTIF_KEYS.noSignal, true)
     pushNotification(
-      '📡 Signal GPS perdu — Orepmi',
+      'Signal GPS perdu — Orepmi',
       'Le tracker ne reçoit aucun satellite. La position peut être inexacte.',
-      '📡 Signal GPS perdu (0 sats)',
+      'Signal GPS perdu (0 sats)',
       'danger'
     )
   }
@@ -1409,621 +1083,10 @@ function onFsAfterLeave() {
   }
 }
 
-// ─── Carte 2 : Calculs, Tracé du trajet et Filtre par date ────────────────────
-function calcHaversine(lat1, lon1, lat2, lon2) {
-  const R = 6371 // km
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
 
-function formatDisplayDate(dateStr) {
-  if (!dateStr || dateStr === 'all') return 'Toutes les dates'
-  const parts = dateStr.split('-')
-  if (parts.length === 3) {
-    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
-    const todayStr = new Date().toISOString().slice(0, 10)
-    const isToday = dateStr === todayStr
-    const formatted = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-    return isToday ? `${formatted} (Aujourd'hui)` : formatted
-  }
-  return dateStr
-}
 
-// Available dates with point counts computed from all history
-const availableDates = computed(() => {
-  const mapCounts = {}
-  for (const p of allHistoryPoints.value) {
-    if (p.date_str) {
-      mapCounts[p.date_str] = (mapCounts[p.date_str] || 0) + 1
-    }
-  }
-  return Object.keys(mapCounts)
-    .sort()
-    .reverse()
-    .map(date => ({
-      date,
-      count: mapCounts[date],
-      label: formatDisplayDate(date),
-    }))
-})
 
-// Points filtered by selected date (or all dates)
-const filteredHistoryPoints = computed(() => {
-  if (!selectedHistoryDate.value || selectedHistoryDate.value === 'all') {
-    return allHistoryPoints.value
-  }
-  return allHistoryPoints.value.filter(p => p.date_str === selectedHistoryDate.value)
-})
 
-const isFirstDate = computed(() => {
-  if (selectedHistoryDate.value === 'all') return true
-  const idx = availableDates.value.findIndex(d => d.date === selectedHistoryDate.value)
-  return idx >= availableDates.value.length - 1
-})
-
-const isLastDate = computed(() => {
-  if (selectedHistoryDate.value === 'all') return false
-  const idx = availableDates.value.findIndex(d => d.date === selectedHistoryDate.value)
-  return idx <= 0
-})
-
-const routeStats = computed(() => {
-  const pts = filteredHistoryPoints.value
-  if (!pts || pts.length === 0) {
-    return {
-      distanceKm: 0,
-      pointsCount: 0,
-      durationStr: '--',
-      startTimeStr: '--',
-      endTimeStr: '--',
-      avgSpeed: 0,
-      maxSpeed: 0,
-    }
-  }
-
-  let totalDist = 0
-  let maxSpd = 0
-  let sumSpd = 0
-
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i]
-    if (p.speed > maxSpd) maxSpd = p.speed
-    sumSpd += p.speed
-
-    if (i > 0) {
-      const prev = pts[i - 1]
-      const d = calcHaversine(prev.lat, prev.lng, p.lat, p.lng)
-      if (d < 50) totalDist += d
-    }
-  }
-
-  const firstTime = new Date(pts[0].created_at).getTime()
-  const lastTime = new Date(pts[pts.length - 1].created_at).getTime()
-  const diffMinutes = Math.max(0, Math.round((lastTime - firstTime) / 60000))
-  const hours = Math.floor(diffMinutes / 60)
-  const mins = diffMinutes % 60
-  const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`
-
-  const formatTime = (iso) => {
-    try {
-      return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return '--'
-    }
-  }
-
-  return {
-    distanceKm: parseFloat(totalDist.toFixed(2)),
-    pointsCount: pts.length,
-    durationStr,
-    startTimeStr: formatTime(pts[0].created_at),
-    endTimeStr: formatTime(pts[pts.length - 1].created_at),
-    avgSpeed: Math.round(sumSpd / pts.length),
-    maxSpeed: Math.round(maxSpd),
-  }
-})
-
-function appendGpsToHistory(data) {
-  if (!data || !data.lat || !data.lng) return
-  const dateStr = data.created_at ? data.created_at.slice(0, 10) : ''
-  const item = {
-    id: data.id,
-    tracker_id: data.tracker_id,
-    lat: data.lat,
-    lng: data.lng,
-    speed: data.speed,
-    satellites: data.satellites,
-    charge: data.charge,
-    created_at: data.created_at,
-    date_str: dateStr,
-  }
-  const last = allHistoryPoints.value[allHistoryPoints.value.length - 1]
-  if (!last || last.id !== item.id) {
-    allHistoryPoints.value.push(item)
-    if (selectedHistoryDate.value === 'all' || selectedHistoryDate.value === dateStr) {
-      updateHistoryRoute()
-      if (historyFsMap) updateHistoryFsRoute()
-    }
-  }
-}
-
-async function fetchHistory() {
-  isLoadingHistory.value = true
-  try {
-    let rows = []
-
-    // 1. Direct Supabase query
-    try {
-      let query = supabase
-        .from('gps_logs')
-        .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
-        .order('created_at', { ascending: true })
-
-      if (trackerId.value) {
-        query = query.eq('tracker_id', trackerId.value)
-      }
-
-      const { data, error } = await query
-      if (!error && data && data.length > 0) {
-        rows = data
-      }
-    } catch (e) {
-      console.warn('[fetchHistory Supabase error]', e)
-    }
-
-    // 2. Fallback to /api/gps/history
-    if (rows.length === 0) {
-      try {
-        const res = await fetch(`/api/gps/history?tracker_id=${trackerId.value || ''}`)
-        if (res.ok) {
-          const apiData = await res.json()
-          if (apiData && Array.isArray(apiData.points)) {
-            rows = apiData.points
-          }
-        }
-      } catch (e) {
-        console.warn('[fetchHistory API fallback error]', e)
-      }
-    }
-
-    // 3. Fallback to /api/gps/export
-    if (rows.length === 0) {
-      try {
-        const res = await fetch(`/api/gps/export?tracker_id=${trackerId.value || ''}`)
-        if (res.ok) {
-          const apiData = await res.json()
-          if (Array.isArray(apiData)) rows = apiData
-        }
-      } catch (e) {
-        console.warn('[fetchHistory export fallback error]', e)
-      }
-    }
-
-    const parsed = []
-    for (const r of rows) {
-      const lat = parseFloat(r.latitude ?? r.lat)
-      const lng = parseFloat(r.longitude ?? r.lng)
-      if (!isNaN(lat) && !isNaN(lng)) {
-        parsed.push({
-          id: r.id,
-          tracker_id: r.tracker_id,
-          lat,
-          lng,
-          speed: parseFloat(r.speed ?? 0),
-          satellites: parseInt(r.satellites ?? 0, 10),
-          charge: parseInt(r.charge ?? 0, 10),
-          created_at: r.created_at,
-          date_str: r.created_at ? r.created_at.slice(0, 10) : '',
-        })
-      }
-    }
-
-    allHistoryPoints.value = parsed
-
-    if (availableDates.value.length > 0 && selectedHistoryDate.value === 'all') {
-      selectedHistoryDate.value = availableDates.value[0].date
-    }
-
-    await nextTick()
-    if (!historyMap && historyMapEl.value && filteredHistoryPoints.value.length > 0) {
-      await initHistoryMap()
-    } else if (historyMap) {
-      updateHistoryRoute()
-    }
-  } catch (err) {
-    console.error('[fetchHistory]', err)
-  } finally {
-    isLoadingHistory.value = false
-  }
-}
-
-function setMapDisplayMode(mode) {
-  mapDisplayMode.value = mode
-  nextTick(() => {
-    setTimeout(async () => {
-      if ((mode === 'live' || mode === 'dual') && map) {
-        map.invalidateSize()
-      }
-      if (mode === 'history' || mode === 'dual') {
-        if (!historyMap && historyMapEl.value && filteredHistoryPoints.value.length > 0) {
-          await initHistoryMap()
-        } else if (historyMap) {
-          historyMap.invalidateSize()
-          fitHistoryBounds()
-        }
-      }
-    }, 120)
-  })
-}
-
-function prevHistoryDate() {
-  const dates = availableDates.value
-  if (dates.length === 0) return
-  const idx = dates.findIndex(d => d.date === selectedHistoryDate.value)
-  if (idx < dates.length - 1) {
-    selectedHistoryDate.value = dates[idx + 1].date
-    onDateChanged()
-  }
-}
-
-function nextHistoryDate() {
-  const dates = availableDates.value
-  if (dates.length === 0) return
-  const idx = dates.findIndex(d => d.date === selectedHistoryDate.value)
-  if (idx > 0) {
-    selectedHistoryDate.value = dates[idx - 1].date
-    onDateChanged()
-  } else if (idx === -1) {
-    selectedHistoryDate.value = dates[0].date
-    onDateChanged()
-  }
-}
-
-function onDateChanged() {
-  stopRoutePlayback()
-  playbackIndex.value = 0
-  updateHistoryRoute()
-  if (historyFsMap) {
-    updateHistoryFsRoute()
-  }
-}
-
-async function initHistoryMap() {
-  if (!historyMapEl.value) return
-  const L = (await import('leaflet')).default
-  await import('leaflet/dist/leaflet.css')
-
-  if (historyMap) {
-    historyMap.remove()
-    historyMap = null
-  }
-
-  const defaultCenter = location.value
-    ? [location.value.lat, location.value.lng]
-    : filteredHistoryPoints.value.length > 0
-    ? [filteredHistoryPoints.value[0].lat, filteredHistoryPoints.value[0].lng]
-    : [46.539, 6.662]
-
-  const m = L.map(historyMapEl.value, {
-    zoomControl: true,
-    attributionControl: true,
-  }).setView(defaultCenter, 15)
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(m)
-
-  historyMap = m
-  updateHistoryRoute()
-  setTimeout(() => m.invalidateSize(), 150)
-}
-
-async function updateHistoryRoute() {
-  if (!historyMap) return
-  const L = (await import('leaflet')).default
-
-  if (historyCasingLine) { historyMap.removeLayer(historyCasingLine); historyCasingLine = null }
-  if (historyPolyline) { historyMap.removeLayer(historyPolyline); historyPolyline = null }
-  if (historyStartMarker) { historyMap.removeLayer(historyStartMarker); historyStartMarker = null }
-  if (historyEndMarker) { historyMap.removeLayer(historyEndMarker); historyEndMarker = null }
-  if (historyPlaybackMarker) { historyMap.removeLayer(historyPlaybackMarker); historyPlaybackMarker = null }
-
-  const pts = filteredHistoryPoints.value
-  if (!pts || pts.length === 0) return
-
-  const latlngs = pts.map(p => [p.lat, p.lng])
-
-  // Outer glow shadow casing
-  historyCasingLine = L.polyline(latlngs, {
-    color: '#ea580c',
-    weight: 7,
-    opacity: 0.35,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(historyMap)
-
-  // Inner vivid polyline
-  historyPolyline = L.polyline(latlngs, {
-    color: '#f05000',
-    weight: 3.5,
-    opacity: 0.95,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(historyMap)
-
-  historyPolyline.on('click', (e) => {
-    const lat = e.latlng.lat.toFixed(5)
-    const lng = e.latlng.lng.toFixed(5)
-    L.popup()
-      .setLatLng(e.latlng)
-      .setContent(`
-        <div style="font-family: inherit; font-size: 12px; line-height: 1.4;">
-          <strong style="color: #f05000;">🛣️ Tracé du trajet</strong><br/>
-          <span>Date : ${formatDisplayDate(selectedHistoryDate.value)}</span><br/>
-          <span>Position : ${lat}°N, ${lng}°E</span>
-        </div>
-      `)
-      .openOn(historyMap)
-  })
-
-  // Start marker (green D)
-  const first = pts[0]
-  const startIcon = L.divIcon({
-    className: '',
-    html: `
-      <div class="route-marker-pin start-pin" title="Départ: ${first.created_at ? new Date(first.created_at).toLocaleTimeString('fr-FR') : ''}">
-        <span>D</span>
-      </div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-  })
-  historyStartMarker = L.marker([first.lat, first.lng], { icon: startIcon }).addTo(historyMap)
-  historyStartMarker.bindPopup(`
-    <div style="font-family: inherit; font-size: 12px; line-height: 1.4;">
-      <strong style="color: #22c55e;">🟢 Point de départ</strong><br/>
-      <span>Date : ${formatDisplayDate(first.date_str)}</span><br/>
-      <span>Heure : ${first.created_at ? new Date(first.created_at).toLocaleTimeString('fr-FR') : '--'}</span><br/>
-      <span>Vitesse : ${first.speed} km/h</span>
-    </div>
-  `)
-
-  // Arrival marker (orange A)
-  if (pts.length > 1) {
-    const last = pts[pts.length - 1]
-    const endIcon = L.divIcon({
-      className: '',
-      html: `
-        <div class="route-marker-pin end-pin" title="Arrivée: ${last.created_at ? new Date(last.created_at).toLocaleTimeString('fr-FR') : ''}">
-          <span>A</span>
-        </div>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
-    })
-    historyEndMarker = L.marker([last.lat, last.lng], { icon: endIcon }).addTo(historyMap)
-    historyEndMarker.bindPopup(`
-      <div style="font-family: inherit; font-size: 12px; line-height: 1.4;">
-        <strong style="color: #f05000;">🏁 Point d'arrivée</strong><br/>
-        <span>Date : ${formatDisplayDate(last.date_str)}</span><br/>
-        <span>Heure : ${last.created_at ? new Date(last.created_at).toLocaleTimeString('fr-FR') : '--'}</span><br/>
-        <span>Vitesse : ${last.speed} km/h</span>
-      </div>
-    `)
-  }
-
-  fitHistoryBounds()
-}
-
-function fitHistoryBounds() {
-  if (!historyMap || !historyPolyline) return
-  try {
-    const bounds = historyPolyline.getBounds()
-    if (bounds.isValid()) {
-      historyMap.fitBounds(bounds, { padding: [25, 25], maxZoom: 17 })
-    }
-  } catch (err) {
-    console.warn('[fitHistoryBounds]', err)
-  }
-}
-
-// ─── Playback Animation on Carte 2 ──────────────────────────────────────────
-function toggleRoutePlayback() {
-  if (isPlayingRoute.value) {
-    stopRoutePlayback()
-  } else {
-    startRoutePlayback()
-  }
-}
-
-async function startRoutePlayback() {
-  const pts = filteredHistoryPoints.value
-  if (!pts || pts.length === 0 || !historyMap) return
-  const L = (await import('leaflet')).default
-
-  if (playbackIndex.value >= pts.length - 1) {
-    playbackIndex.value = 0
-  }
-
-  isPlayingRoute.value = true
-
-  if (!historyPlaybackMarker) {
-    const pIcon = L.divIcon({
-      className: '',
-      html: `
-        <div class="route-playback-pin" title="Position en lecture">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-          </svg>
-        </div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    })
-    historyPlaybackMarker = L.marker([pts[playbackIndex.value].lat, pts[playbackIndex.value].lng], {
-      icon: pIcon,
-      zIndexOffset: 1000,
-    }).addTo(historyMap)
-  }
-
-  const step = Math.max(1, Math.floor(pts.length / 100))
-  if (playbackInterval) clearInterval(playbackInterval)
-
-  playbackInterval = setInterval(() => {
-    playbackIndex.value += step
-    if (playbackIndex.value >= pts.length - 1) {
-      playbackIndex.value = pts.length - 1
-      const last = pts[playbackIndex.value]
-      if (historyPlaybackMarker) historyPlaybackMarker.setLatLng([last.lat, last.lng])
-      stopRoutePlayback()
-      return
-    }
-    const cur = pts[playbackIndex.value]
-    if (historyPlaybackMarker && cur) {
-      historyPlaybackMarker.setLatLng([cur.lat, cur.lng])
-    }
-  }, 90)
-}
-
-function stopRoutePlayback() {
-  isPlayingRoute.value = false
-  if (playbackInterval) {
-    clearInterval(playbackInterval)
-    playbackInterval = null
-  }
-}
-
-// ─── Carte 2 Fullscreen Handlers ────────────────────────────────────────────
-async function openHistoryFullscreen() {
-  historyFullscreen.value = true
-  document.body.classList.add('map-fullscreen-active')
-  await nextTick()
-  if (historyFsMapEl.value) {
-    await initHistoryFsMap()
-  }
-}
-
-function closeHistoryFullscreen() {
-  historyFullscreen.value = false
-  document.body.classList.remove('map-fullscreen-active')
-  if (historyFsMap) {
-    historyFsMap.remove()
-    historyFsMap = null
-  }
-}
-
-function onHistoryFsAfterLeave() {
-  if (historyFsMap) {
-    historyFsMap.remove()
-    historyFsMap = null
-  }
-}
-
-async function initHistoryFsMap() {
-  if (!historyFsMapEl.value) return
-  const L = (await import('leaflet')).default
-  await import('leaflet/dist/leaflet.css')
-
-  if (historyFsMap) {
-    historyFsMap.remove()
-    historyFsMap = null
-  }
-
-  const defaultCenter = location.value
-    ? [location.value.lat, location.value.lng]
-    : filteredHistoryPoints.value.length > 0
-    ? [filteredHistoryPoints.value[0].lat, filteredHistoryPoints.value[0].lng]
-    : [46.539, 6.662]
-
-  const m = L.map(historyFsMapEl.value, {
-    zoomControl: true,
-    attributionControl: true,
-  }).setView(defaultCenter, 15)
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(m)
-
-  historyFsMap = m
-  updateHistoryFsRoute()
-  setTimeout(() => m.invalidateSize(), 150)
-}
-
-async function updateHistoryFsRoute() {
-  if (!historyFsMap) return
-  const L = (await import('leaflet')).default
-
-  if (historyFsCasingLine) { historyFsMap.removeLayer(historyFsCasingLine); historyFsCasingLine = null }
-  if (historyFsPolyline) { historyFsMap.removeLayer(historyFsPolyline); historyFsPolyline = null }
-  if (historyFsStartMarker) { historyFsMap.removeLayer(historyFsStartMarker); historyFsStartMarker = null }
-  if (historyFsEndMarker) { historyFsMap.removeLayer(historyFsEndMarker); historyFsEndMarker = null }
-
-  const pts = filteredHistoryPoints.value
-  if (!pts || pts.length === 0) return
-
-  const latlngs = pts.map(p => [p.lat, p.lng])
-
-  historyFsCasingLine = L.polyline(latlngs, {
-    color: '#ea580c',
-    weight: 8,
-    opacity: 0.35,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(historyFsMap)
-
-  historyFsPolyline = L.polyline(latlngs, {
-    color: '#f05000',
-    weight: 4,
-    opacity: 0.95,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(historyFsMap)
-
-  const first = pts[0]
-  const startIcon = L.divIcon({
-    className: '',
-    html: `
-      <div class="route-marker-pin start-pin">
-        <span>D</span>
-      </div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  })
-  historyFsStartMarker = L.marker([first.lat, first.lng], { icon: startIcon }).addTo(historyFsMap)
-
-  if (pts.length > 1) {
-    const last = pts[pts.length - 1]
-    const endIcon = L.divIcon({
-      className: '',
-      html: `
-        <div class="route-marker-pin end-pin">
-          <span>A</span>
-        </div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    })
-    historyFsEndMarker = L.marker([last.lat, last.lng], { icon: endIcon }).addTo(historyFsMap)
-  }
-
-  fitHistoryFsBounds()
-}
-
-function fitHistoryFsBounds() {
-  if (!historyFsMap || !historyFsPolyline) return
-  try {
-    const bounds = historyFsPolyline.getBounds()
-    if (bounds.isValid()) {
-      historyFsMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 })
-    }
-  } catch (err) {
-    console.warn('[fitHistoryFsBounds]', err)
-  }
-}
 
 
 // ─── Lock toggle with fancy feedback & database sync ─────────────────────────
@@ -2091,20 +1154,30 @@ async function downloadTrackerData(format = 'csv') {
   try {
     let rows = []
 
-    // 1. Try Supabase direct query
+    // 1. Try Supabase direct query (paginated to retrieve all rows beyond 1000 limit)
     try {
-      let query = supabase
-        .from('gps_logs')
-        .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
-        .order('created_at', { ascending: true })
+      let page = 0
+      const pageSize = 1000
+      while (true) {
+        let query = supabase
+          .from('gps_logs')
+          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
+          .order('created_at', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1)
 
-      if (trackerId.value) {
-        query = query.eq('tracker_id', trackerId.value)
-      }
+        if (trackerId.value) {
+          query = query.eq('tracker_id', trackerId.value)
+        }
 
-      const { data, error } = await query
-      if (!error && data && data.length > 0) {
-        rows = data
+        const { data, error } = await query
+        if (error) {
+          console.warn('[downloadTrackerData Supabase page error]', error)
+          break
+        }
+        if (!data || data.length === 0) break
+        rows.push(...data)
+        if (data.length < pageSize) break
+        page++
       }
     } catch (e) {
       console.warn('[downloadTrackerData Supabase error]', e)
@@ -2178,7 +1251,7 @@ async function downloadTrackerData(format = 'csv') {
       URL.revokeObjectURL(url)
     }
 
-    triggerToast(`✓ ${rows.length} points GPS exportés (${format.toUpperCase()})`, 'unlocked')
+    triggerToast(`${rows.length} points GPS exportés (${format.toUpperCase()})`, 'unlocked')
   } catch (err) {
     console.error('[downloadTrackerData]', err)
     triggerToast('Erreur lors du téléchargement des données', 'danger')
@@ -2204,9 +1277,7 @@ onMounted(async () => {
   await fetchTracker()
   await fetchLatest()
   await fetchFirstRecord()
-  await fetchHistory()
   if (location.value) await initMap()
-  if (filteredHistoryPoints.value.length > 0) await initHistoryMap()
   // Fast 1s fallback polling to match high-frequency (5Hz) tracker stream
   pollInterval = setInterval(fetchLatest, 1000)
 
@@ -2246,26 +1317,15 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearInterval(pollInterval)
-  if (playbackInterval) clearInterval(playbackInterval)
   if (realtimeChannel) realtimeChannel.unsubscribe()
   if (trackerRealtimeChannel) trackerRealtimeChannel.unsubscribe()
   document.body.classList.remove('map-fullscreen-active')
   if (map) map.remove()
   if (fsMap) fsMap.remove()
-  if (historyMap) historyMap.remove()
-  if (historyFsMap) historyFsMap.remove()
 })
 
 watch(location, async (newVal) => {
   if (newVal && !map) await initMap()
-})
-
-watch(filteredHistoryPoints, async () => {
-  if (historyMap) {
-    updateHistoryRoute()
-  } else if (historyMapEl.value && filteredHistoryPoints.value.length > 0) {
-    await initHistoryMap()
-  }
 })
 </script>
 
@@ -3542,503 +2602,72 @@ watch(filteredHistoryPoints, async () => {
   transform: translateY(-4px);
 }
 
-/* ─── Carte 1 & Carte 2 Multi-Map Switcher ────────────────────────────────── */
-.tracker-maps-header {
-  background: rgba(11, 15, 19, 0.95);
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  padding: 6px 10px;
-}
-
-.map-tabs-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(18, 24, 32, 0.85);
-  padding: 3px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.btn-map-tab {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 8px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}
-
-.btn-map-tab:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.btn-map-tab.is-active {
-  background: rgba(240, 80, 0, 0.14);
-  border-color: rgba(240, 80, 0, 0.4);
-  color: #ffffff;
-  box-shadow: 0 0 10px rgba(240, 80, 0, 0.18);
-}
-
-.tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+/* ─── Movement Alert Badge Icon ────────────────────────────────────────────── */
+.alert-badge-svg {
   flex-shrink: 0;
+  color: #ef4444;
 }
 
-.tab-dot.dot-live {
-  background: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
-}
-
-.tab-dot.dot-history {
-  background: var(--accent-orange, #f05000);
-  box-shadow: 0 0 6px var(--accent-orange, #f05000);
-}
-
-.tab-badge {
-  background: rgba(240, 80, 0, 0.25);
-  color: #ff8a4c;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 10px;
-}
-
-.tab-grid-icon {
-  color: currentColor;
-}
-
-/* ─── Map Wrapper Modes ───────────────────────────────────────────────────── */
-.tracker-map-wrapper {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-map-section {
-  position: relative;
-}
-
-.card-map-section.map-section-history {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.map-section-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(11, 15, 19, 0.9);
-  padding: 5px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 11px;
-  font-weight: 600;
-  color: #cbd5e1;
-}
-
-.section-label-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-.section-label-dot.dot-live { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
-.section-label-dot.dot-history { background: #f05000; box-shadow: 0 0 5px #f05000; }
-
-.section-live-pill {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.section-live-pill.pill-online {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.3);
-}
-.section-live-pill.pill-offline {
-  background: rgba(148, 163, 184, 0.15);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-/* ─── Carte 2 Header (Date Picker & Tools) ─────────────────────────────────── */
-.history-map-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 10px;
-  background: rgba(11, 15, 19, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.history-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.history-map-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #f1f5f9;
-  white-space: nowrap;
-}
-
-.badge-text {
-  font-size: 11px;
-  letter-spacing: -0.01em;
-}
-
-.history-date-picker-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  background: rgba(20, 27, 36, 0.9);
-  border: 1px solid rgba(240, 80, 0, 0.35);
-  border-radius: 5px;
-  padding: 2px;
-}
-
-.btn-date-arrow {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  width: 18px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 3px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  transition: all 0.15s ease;
-}
-
-.btn-date-arrow:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-.btn-date-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.history-date-dropdown {
-  background: transparent;
-  border: none;
-  color: #f8fafc;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 4px;
-  outline: none;
-  cursor: pointer;
-  max-width: 155px;
-}
-
-.history-date-dropdown option {
-  background: #0f172a;
-  color: #f8fafc;
-}
-
-.history-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.btn-history-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
-  border-radius: 4px;
-  padding: 3px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.btn-history-tool:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.btn-history-tool.is-playing {
-  background: rgba(240, 80, 0, 0.25);
-  border-color: #f05000;
-  color: #ff8a4c;
-}
-
-.btn-history-tool.btn-icon-only {
-  padding: 4px;
-  width: 24px;
-  height: 24px;
-  justify-content: center;
-}
-
-/* ─── Second Map Height & Sizing ─────────────────────────────────────────── */
-.tracker-map-second {
-  height: 220px;
-}
-
-.mode-dual .tracker-map-live {
-  height: 175px;
-}
-
-.mode-dual .tracker-map-second {
-  height: 195px;
-}
-
-/* ─── Second Map HUD Stats Bar ────────────────────────────────────────────── */
-.history-route-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 6px 10px;
-  background: rgba(11, 15, 19, 0.96);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 10px;
-  overflow-x: auto;
-}
-
-.route-metric {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: #e2e8f0;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.metric-val {
-  color: #ffffff;
-}
-
-.route-metric-times {
-  color: #94a3b8;
-  font-size: 9px;
-}
-
-.metric-arrow {
-  color: #64748b;
-  margin: 0 1px;
-}
-
-/* ─── Route Marker Pins (Leaflet DivIcon) ─────────────────────────────────── */
-:deep(.route-marker-pin) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 11px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-:deep(.route-marker-pin:hover) {
-  transform: scale(1.15);
-}
-
-:deep(.route-marker-pin.start-pin) {
-  background: #22c55e;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
-}
-
-:deep(.route-marker-pin.end-pin) {
-  background: #f05000;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(240, 80, 0, 0.7);
-}
-
-:deep(.route-playback-pin) {
-  width: 24px;
-  height: 24px;
-  background: #0284c7;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 0 14px rgba(2, 132, 199, 0.9);
-  animation: pulse-playback 1.2s ease-in-out infinite;
-}
-
-@keyframes pulse-playback {
-  0%, 100% { box-shadow: 0 0 8px rgba(2, 132, 199, 0.6); }
-  50% { box-shadow: 0 0 18px rgba(2, 132, 199, 1); }
-}
-
-/* ─── Route Summary Pill in Card Body ─────────────────────────────────────── */
-.tracker-route-summary-pill {
+/* ─── Dedicated Trajectory / Movement Page Nav Pill ───────────────────────── */
+.tracker-parcours-nav-pill {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: rgba(240, 80, 0, 0.08);
-  border: 1px solid rgba(240, 80, 0, 0.22);
-  border-radius: 6px;
-  padding: 6px 10px;
-  margin-top: 6px;
+  border: 1px solid rgba(240, 80, 0, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.tracker-route-summary-pill:hover {
-  background: rgba(240, 80, 0, 0.15);
-  border-color: rgba(240, 80, 0, 0.45);
+.tracker-parcours-nav-pill:hover {
+  background: rgba(240, 80, 0, 0.16);
+  border-color: rgba(240, 80, 0, 0.55);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(240, 80, 0, 0.15);
 }
 
-.route-pill-left {
+.nav-pill-left {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.route-pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-orange, #f05000);
-  box-shadow: 0 0 6px var(--accent-orange, #f05000);
-}
-
-.route-pill-title {
-  color: #f1f5f9;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.route-pill-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.route-pill-metric {
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.route-pill-sep {
-  color: #64748b;
-}
-
-.route-pill-pts {
-  color: #94a3b8;
-}
-
-.route-pill-link {
+.nav-pill-icon {
   color: var(--accent-orange, #f05000);
-  font-weight: 700;
-  margin-left: 2px;
+  flex-shrink: 0;
 }
 
-/* ─── Fullscreen Carte 2 Overlay Styles ────────────────────────────────────── */
-.history-fs-card {
-  position: relative;
+.nav-pill-title {
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.history-fs-hud-top {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 56px;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: rgba(12, 16, 20, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-  padding: 6px 12px;
-  border-radius: 6px;
-  pointer-events: auto;
-}
-
-.fs-hud-badge {
+.nav-pill-right {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.nav-pill-action {
+  color: var(--accent-orange, #f05000);
   font-size: 11px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
-.fs-badge-dot.dot-history {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #f05000;
-  box-shadow: 0 0 8px #f05000;
+.nav-pill-arrow {
+  color: var(--accent-orange, #f05000);
+  transition: transform 0.2s ease;
 }
 
-.fs-picker-wrap {
-  background: rgba(20, 27, 36, 0.95);
-  border-color: rgba(240, 80, 0, 0.5);
-}
-
-.fs-date-dropdown {
-  max-width: 200px;
-  font-size: 12px;
-}
-
-.fs-history-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.history-fs-hud-bottom {
-  position: absolute;
-  bottom: 14px;
-  left: 14px;
-  z-index: 1000;
-  background: rgba(12, 16, 20, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-  padding: 6px 14px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-}
-
-.fs-times-text {
-  color: #94a3b8;
+.tracker-parcours-nav-pill:hover .nav-pill-arrow {
+  transform: translateX(3px);
 }
 </style>
 

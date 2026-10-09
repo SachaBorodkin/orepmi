@@ -189,7 +189,11 @@
       <!-- Metrics HUD Grid -->
       <section class="metrics-grid">
         <div class="metric-card">
-          <div class="metric-card-icon icon-dist">📏</div>
+          <div class="metric-card-icon icon-dist">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Distance parcourue</div>
             <div class="metric-card-value">{{ routeStats.distanceKm }} <span class="metric-unit">km</span></div>
@@ -197,7 +201,12 @@
         </div>
 
         <div class="metric-card">
-          <div class="metric-card-icon icon-points">📍</div>
+          <div class="metric-card-icon icon-points">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Relevés GPS</div>
             <div class="metric-card-value">{{ routeStats.pointsCount }} <span class="metric-unit">points</span></div>
@@ -205,7 +214,12 @@
         </div>
 
         <div class="metric-card">
-          <div class="metric-card-icon icon-time">⏱️</div>
+          <div class="metric-card-icon icon-time">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Durée totale</div>
             <div class="metric-card-value">{{ routeStats.durationStr }}</div>
@@ -213,7 +227,12 @@
         </div>
 
         <div class="metric-card">
-          <div class="metric-card-icon icon-speed">🚀</div>
+          <div class="metric-card-icon icon-speed">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 14l3-3"/>
+              <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Vitesse max / Moyenne</div>
             <div class="metric-card-value">
@@ -224,7 +243,12 @@
         </div>
 
         <div class="metric-card">
-          <div class="metric-card-icon icon-start">🟢</div>
+          <div class="metric-card-icon icon-start">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="10 8 16 12 10 16" fill="currentColor"/>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Départ</div>
             <div class="metric-card-value text-time">{{ routeStats.startTimeStr }}</div>
@@ -232,7 +256,12 @@
         </div>
 
         <div class="metric-card">
-          <div class="metric-card-icon icon-end">🏁</div>
+          <div class="metric-card-icon icon-end">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+              <line x1="4" y1="22" x2="4" y2="15"/>
+            </svg>
+          </div>
           <div class="metric-card-body">
             <div class="metric-card-label">Arrivée</div>
             <div class="metric-card-value text-time">{{ routeStats.endTimeStr }}</div>
@@ -336,7 +365,11 @@
                 <td>{{ p.satellites }} sats</td>
                 <td>
                   <button type="button" class="btn-point-locate" @click.stop="jumpToPoint(tablePage * tablePerPage + idx)">
-                    Localiser ➔
+                    <span>Localiser</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                      <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
                   </button>
                 </td>
               </tr>
@@ -371,10 +404,13 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { supabase } from '../lib/supabase'
 
+const route = useRoute()
+
 // ─── State ────────────────────────────────────────────────────────────────────
-const trackerId       = ref(1)
+const trackerId       = ref(parseInt(route.query.tracker_id, 10) || 1)
 const trackerName     = ref('TestTracker1')
 const latestLocation  = ref(null)
 
@@ -543,15 +579,35 @@ async function loadData() {
   try {
     let rows = []
 
-    // 1. Direct Supabase
+    // 1. Direct Supabase: paginate with .range() to fetch ALL data (bypassing 1000-row limit)
     try {
-      const { data, error } = await supabase
-        .from('gps_logs')
-        .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
-        .order('created_at', { ascending: true })
+      let allRows = []
+      let page = 0
+      const pageSize = 1000
+      while (true) {
+        let query = supabase
+          .from('gps_logs')
+          .select('id, tracker_id, latitude, longitude, speed, satellites, charge, created_at')
+          .order('created_at', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1)
 
-      if (!error && data && data.length > 0) {
-        rows = data
+        if (trackerId.value) {
+          query = query.or(`tracker_id.eq.${trackerId.value},tracker_id.is.null`)
+        }
+
+        const { data, error } = await query
+        if (error) {
+          console.warn('[Trajectory loadData Supabase error]', error)
+          break
+        }
+        if (!data || data.length === 0) break
+        allRows.push(...data)
+        if (data.length < pageSize) break
+        page++
+      }
+
+      if (allRows.length > 0) {
+        rows = allRows
       }
     } catch (e) {
       console.warn('[Trajectory loadData Supabase error]', e)
@@ -592,6 +648,20 @@ async function loadData() {
     }
 
     allPoints.value = parsed
+    if (parsed.length > 0) {
+      latestLocation.value = parsed[parsed.length - 1]
+    }
+
+    try {
+      const { data: tData } = await supabase
+        .from('tracker')
+        .select('name')
+        .eq('id', trackerId.value)
+        .maybeSingle()
+      if (tData?.name) {
+        trackerName.value = tData.name
+      }
+    } catch {}
 
     // Set default date to the latest available day
     if (availableDates.value.length > 0 && selectedDate.value === 'all') {
@@ -679,7 +749,7 @@ async function drawRoute() {
       .setLatLng(e.latlng)
       .setContent(`
         <div style="font-family: inherit; font-size: 13px; line-height: 1.4;">
-          <strong style="color: #f05000;">🛣️ Tracé du trajet</strong><br/>
+          <strong style="color: #f05000;">Tracé du trajet</strong><br/>
           <span>Date : ${formatDisplayDate(selectedDate.value)}</span><br/>
           <span>Position : ${e.latlng.lat.toFixed(5)}°N, ${e.latlng.lng.toFixed(5)}°E</span>
         </div>
@@ -698,7 +768,7 @@ async function drawRoute() {
   startMarker = L.marker([first.lat, first.lng], { icon: startIcon }).addTo(mapInstance)
   startMarker.bindPopup(`
     <div style="font-family: inherit; font-size: 13px;">
-      <strong style="color: #22c55e;">🟢 Point de départ</strong><br/>
+      <strong style="color: #22c55e;">Point de départ</strong><br/>
       <span>Date : ${formatDisplayDate(first.date_str)}</span><br/>
       <span>Heure : ${formatDateTime(first.created_at)}</span><br/>
       <span>Vitesse : ${first.speed} km/h</span>
@@ -717,7 +787,7 @@ async function drawRoute() {
     endMarker = L.marker([last.lat, last.lng], { icon: endIcon }).addTo(mapInstance)
     endMarker.bindPopup(`
       <div style="font-family: inherit; font-size: 13px;">
-        <strong style="color: #f05000;">🏁 Point d'arrivée</strong><br/>
+        <strong style="color: #f05000;">Point d'arrivée</strong><br/>
         <span>Date : ${formatDisplayDate(last.date_str)}</span><br/>
         <span>Heure : ${formatDateTime(last.created_at)}</span><br/>
         <span>Vitesse : ${last.speed} km/h</span>
@@ -1276,8 +1346,23 @@ watch(filteredPoints, () => {
 }
 
 .metric-card-icon {
-  font-size: 22px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
+
+.metric-card-icon.icon-dist { color: #f05000; background: rgba(240, 80, 0, 0.1); border-color: rgba(240, 80, 0, 0.2); }
+.metric-card-icon.icon-points { color: #38bdf8; background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); }
+.metric-card-icon.icon-time { color: #a855f7; background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.2); }
+.metric-card-icon.icon-speed { color: #eab308; background: rgba(234, 179, 8, 0.1); border-color: rgba(234, 179, 8, 0.2); }
+.metric-card-icon.icon-start { color: #22c55e; background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); }
+.metric-card-icon.icon-end { color: #ef4444; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
 
 .metric-card-body {
   display: flex;

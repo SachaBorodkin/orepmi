@@ -22,7 +22,11 @@
                 </svg>
                 <span>Ajouter un tracker</span>
               </div>
-              <button type="button" class="modal-close-btn" @click="close" aria-label="Fermer">✕</button>
+              <button type="button" class="modal-close-btn" @click="close" aria-label="Fermer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
             </div>
 
             <!-- Radar Banner with sweeping scanner -->
